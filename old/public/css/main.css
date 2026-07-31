@@ -1,0 +1,78 @@
+
+
+
+
+body {
+	background-color: #303841;
+}
+
+li.list-group-item  {
+	background-color: #495159;
+	color:  white;
+}
+
+
+
+li.list-group-item.active {
+	background-color:  #182E45;
+}
+
+li.list-group-item.inactive {
+	background-color: #23272B;
+	color: gray;
+}
+
+
+.footer {
+	background-color: transparent ;
+	position: fixed; ;
+	left: 0px;
+	bottom: 0px;
+	width: 100%;
+	height: 10vh ;
+	z-index: 100;
+	display: inline-block;
+	
+}
+
+.footer button {
+	text-align: center;
+	height: 90%;
+	width: 40%;
+	margin: 5px;
+}
+
+.progressbar {
+	background-color: red;
+	height: 5px; 
+	width: 0%; 
+	position: absolute;
+	left:0px ;
+	bottom: 0px;
+}
+
+div.countdown {
+	color: #1E5289 ;
+	width: 10%;
+	text-align: center;
+
+}
+
+div.text {
+	width: 80%;
+	line-height: 1em;
+}
+
+.col h1{
+	text-align: center; 
+}
+
+div.number {
+	font-size: 10px;
+	width: 8%;
+	text-align: center;
+}
+
+li.list-group-item div {
+	display: inline-block;
+}
