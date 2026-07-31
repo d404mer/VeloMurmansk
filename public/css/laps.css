@@ -1,0 +1,201 @@
+/*
+  ═══════════════════════════════════════════════════════════════
+  НАСТРОЙКА ПЛАШЕК — меняйте значения ниже или URL-параметры:
+
+  /laps?demo=1&left=200&width=480&top=154
+
+  --plaque-left    — отступ слева на экране 1920×1080
+  --plaque-top     — отступ сверху
+  --plaque-width   — общая ширина плашки (имя растягивается само)
+  --plaque-place   — ширина блока «место»
+  --plaque-number  — ширина блока «номер»
+  --plaque-gap-w   — ширина блока «до лидера»
+  --plaque-inner-gap — зазор между блоками внутри плашки
+  --plaque-stack-gap — зазор между плашками
+  ═══════════════════════════════════════════════════════════════
+*/
+:root {
+  --plaque-left: 230px;
+  --plaque-top: 153.5px;
+  --plaque-width: 424px;
+  --plaque-row-height: 33px;
+  --plaque-place: 33px;
+  --plaque-number: 33px;
+  --plaque-gap-w: 70px;
+  --plaque-inner-gap: 7px;
+  --plaque-stack-gap: 7px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+body {
+  min-height: 100vh;
+  width: 1920px;
+  height: 1080px;
+  font-family: 'Montserrat', Arial, Helvetica, sans-serif;
+}
+
+#plaque-stack {
+  position: fixed;
+  left: var(--plaque-left);
+  top: var(--plaque-top);
+  width: var(--plaque-width);
+  height: calc(var(--plaque-row-height) * 4 + var(--plaque-stack-gap) * 3);
+  overflow: hidden;
+  z-index: 1;
+}
+
+#plaque-track {
+  display: flex;
+  flex-direction: column;
+  gap: var(--plaque-stack-gap);
+  will-change: transform;
+  transition: transform 0.4s ease-out;
+}
+
+#plaque-track.plaque-track--shift {
+  transform: translateY(calc(-1 * (var(--plaque-row-height) + var(--plaque-stack-gap))));
+}
+
+.plaque {
+  display: flex;
+  flex-direction: row;
+  gap: var(--plaque-inner-gap);
+  width: var(--plaque-width);
+  height: var(--plaque-row-height);
+  opacity: 0;
+  transform: translateX(-24px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+}
+
+.plaque.plaque--visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.plaque.plaque--leaving-top {
+  opacity: 0;
+  transition: opacity 0.35s ease-out;
+}
+
+.plaque.plaque--instant {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.plaque__place,
+.plaque__number,
+.plaque__name,
+.plaque__gap {
+  display: flex;
+  align-items: center;
+  height: var(--plaque-row-height);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.plaque__place,
+.plaque__number,
+.plaque__gap {
+  flex: 0 0 auto;
+  justify-content: center;
+}
+
+.plaque__fit-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.plaque__fit {
+  display: inline-block;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  transform-origin: center center;
+}
+
+.plaque__place {
+  width: var(--plaque-place);
+  background: #fff;
+  color: #000;
+}
+
+.plaque__number {
+  width: var(--plaque-number);
+  background: #e30613;
+  color: #fff;
+}
+
+.plaque__name {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: flex-start;
+  padding: 0 8px;
+  background: #fff;
+  color: #000;
+}
+
+.plaque__name .plaque__fit-wrap {
+  justify-content: flex-start;
+}
+
+.plaque__name .plaque__fit {
+  transform-origin: left center;
+}
+
+.plaque__gap {
+  width: var(--plaque-gap-w);
+  background: #455ea5;
+  color: #fff;
+}
+
+.test-panel {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 8px;
+}
+
+.test-panel.hidden {
+  display: none;
+}
+
+.test-panel button {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #fff;
+  color: #000;
+}
+
+.test-panel button:hover {
+  background: #eee;
+}

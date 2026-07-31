@@ -6,6 +6,7 @@ const { fetchResults } = require('./lib/limetime');
 const { transformResults } = require('./lib/transform');
 const { exportDataFile } = require('./lib/excelExport');
 const { createSetupRoutes } = require('./lib/setupRoutes');
+const { createLapTracker } = require('./lib/lapTracker');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
@@ -22,6 +23,9 @@ let vmixConnected = false;
 let raceData = emptyRaceData();
 let pollTimer = null;
 let isFetching = false;
+const lapTracker = createLapTracker();
+const sseClients = [];
+let replayTimer = null;
 
 function emptyRaceData() {
   return {
@@ -148,14 +152,64 @@ function pushResultsToVmix(data) {
   }
 }
 
-async function fetchCategoryData(event, category) {
-  const raw = await fetchResults(
+async function fetchCategoryRaw(event, category) {
+  return fetchResults(
     config.limetime,
     event.raceGuid,
     category.stageGuid,
     category.categoryGuid
   );
-  return transformResults(raw);
+}
+
+async function fetchCategoryData(event, category) {
+  const raw = await fetchCategoryRaw(event, category);
+  return { raw, transformed: transformResults(raw) };
+}
+
+function resolveCategoryId(requestedId) {
+  return requestedId || config.activeCategoryId;
+}
+
+function broadcastLapEvent(event) {
+  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  for (const client of sseClients) {
+    if (client.categoryId && client.categoryId !== event.categoryId) continue;
+    client.res.write(payload);
+  }
+}
+
+function deliverLapEvent(event) {
+  lapTracker.publishEvent(event.categoryId, event);
+  broadcastLapEvent(event);
+}
+
+function broadcastLapEvents(newEvents) {
+  for (const event of newEvents) {
+    broadcastLapEvent(event);
+  }
+}
+
+function participantToOverlayName(participant) {
+  const parts = String(participant || '')
+    .trim()
+    .split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts.slice(1).join(' ')} ${parts[0]}`.toUpperCase();
+  }
+  return String(participant || '').toUpperCase();
+}
+
+function lapDetailToEvent(categoryId, row, index) {
+  return {
+    id: `replay-${categoryId}-${index}-${row.номер}-${row.lapNumber}`,
+    place: row.groupRacePosition ?? '',
+    number: row.номер ?? '',
+    name: participantToOverlayName(row.участник),
+    gap: row.leaderDifference ?? '',
+    lapNumber: row.lapNumber ?? '',
+    at: new Date(Date.now() + index).toISOString(),
+    categoryId,
+  };
 }
 
 async function saveExcel(event, categoryResults) {
@@ -197,10 +251,13 @@ async function refreshData() {
   const categoryResults = new Map();
 
   try {
+    const categoryRaw = new Map();
+
     await Promise.all(
       event.categories.map(async (category) => {
         try {
-          const transformed = await fetchCategoryData(event, category);
+          const { raw, transformed } = await fetchCategoryData(event, category);
+          categoryRaw.set(category.id, raw);
           categoryResults.set(category.id, transformed);
         } catch (err) {
           console.error(`${category.name}: ${err.message || err}`);
@@ -209,6 +266,7 @@ async function refreshData() {
     );
 
     const activeData = categoryResults.get(activeCategory.id);
+    const activeRaw = categoryRaw.get(activeCategory.id);
     if (activeData) {
       raceData = {
         ...activeData,
@@ -217,6 +275,11 @@ async function refreshData() {
         lastExport: raceData.lastExport,
       };
       pushResultsToVmix(raceData);
+
+      if (activeRaw) {
+        const newLapEvents = lapTracker.processRawAthletes(activeCategory.id, activeRaw);
+        broadcastLapEvents(newLapEvents);
+      }
     } else {
       raceData.lastError = `Failed to load ${activeCategory.name}`;
     }
@@ -280,7 +343,10 @@ app.get('/api/config', (req, res) => {
 app.post('/api/category', async (req, res) => {
   const { eventId, categoryId } = req.body;
   if (eventId) config.activeEventId = eventId;
-  if (categoryId) config.activeCategoryId = categoryId;
+  if (categoryId) {
+    config.activeCategoryId = categoryId;
+    lapTracker.initCategory(categoryId);
+  }
   saveConfig();
   await refreshData();
   res.json({
@@ -317,6 +383,77 @@ app.post('/row1', (req, res) => {
     fillVmixRow('result', i, athlete || {}, startIndex * 10 + i);
     fillVmixRow('startlist', i, athlete || {}, startIndex * 10 + i);
   }
+});
+
+app.get('/laps', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.sendFile(path.join(__dirname, 'public', 'laps.html'));
+});
+
+app.get('/api/laps/stream', (req, res) => {
+  const categoryId = resolveCategoryId(req.query.categoryId);
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const client = { res, categoryId };
+  sseClients.push(client);
+
+  req.on('close', () => {
+    const idx = sseClients.indexOf(client);
+    if (idx >= 0) sseClients.splice(idx, 1);
+  });
+});
+
+app.get('/api/laps/recent', (req, res) => {
+  const categoryId = resolveCategoryId(req.query.categoryId);
+  const limit = Math.min(Number(req.query.limit) || 10, 50);
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.json({
+    ok: true,
+    events: lapTracker.getRecentEvents(categoryId, limit),
+  });
+});
+
+app.post('/api/laps/simulate', (req, res) => {
+  const categoryId = resolveCategoryId(req.body?.categoryId);
+  const event = lapTracker.addManualEvent(categoryId, req.body || {});
+  broadcastLapEvent(event);
+  res.json({ ok: true, event });
+});
+
+app.post('/api/laps/replay', (req, res) => {
+  const categoryId = resolveCategoryId(req.query.categoryId || req.body?.categoryId);
+  const delayMs = Number(req.query.delayMs || req.body?.delayMs) || 800;
+
+  if (replayTimer) {
+    clearTimeout(replayTimer);
+    replayTimer = null;
+  }
+
+  const rows = [...(raceData.lapDetails || [])];
+  if (!rows.length) {
+    res.status(400).json({ ok: false, error: 'No lap data loaded for active category' });
+    return;
+  }
+
+  res.json({ ok: true, count: rows.length, categoryId });
+
+  let index = 0;
+  function playNext() {
+    if (index >= rows.length) {
+      replayTimer = null;
+      return;
+    }
+    const event = lapDetailToEvent(categoryId, rows[index], index);
+    index += 1;
+    deliverLapEvent(event);
+    replayTimer = setTimeout(playNext, delayMs);
+  }
+
+  playNext();
 });
 
 app.post('/vmixCommand', (req, res) => {
