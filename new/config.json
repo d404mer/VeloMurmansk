@@ -1,0 +1,48 @@
+{
+  "limetime": {
+    "baseUrl": "https://services-results.limetime.io/results/get",
+    "apiKey": "NFJADAJCNDJK_CDJCDSN_DDJNCDJ",
+    "origin": "https://racetime.online",
+    "referer": "https://racetime.online/"
+  },
+  "pollIntervalMs": 5000,
+  "vmix": {
+    "host": "localhost",
+    "autoUpdate": true
+  },
+  "activeEventId": "xcochamp2025",
+  "activeCategoryId": "junior_women",
+  "events": [
+    {
+      "id": "xcochamp2025",
+      "name": "Чемпионат России 2025",
+      "raceGuid": "3640aa26-e656-4e9c-8cc1-386984aa72f8",
+      "categories": [
+        {
+          "id": "women",
+          "name": "Женщины",
+          "stageGuid": "b750a142-552f-44d3-948b-59f3ae29be49",
+          "categoryGuid": "195f0f36-cc66-40e8-9760-ef86fe775f06"
+        },
+        {
+          "id": "men",
+          "name": "Мужчины",
+          "stageGuid": "091b1724-a283-44d4-987a-c2abe8d5d62b",
+          "categoryGuid": "3ee40e8c-d047-45f0-b396-911bd3f5d1b0"
+        },
+        {
+          "id": "junior_women",
+          "name": "Юниорки 17-18",
+          "stageGuid": "23ada076-5a9d-4038-be59-bdcb1f4f8da0",
+          "categoryGuid": "c3544851-1f23-4533-a0fa-f3ca2a917a01"
+        },
+        {
+          "id": "junior_men",
+          "name": "Юниоры 17-18",
+          "stageGuid": "6f54798d-cde1-41da-a940-4b29597b525f",
+          "categoryGuid": "7f9ccc85-9565-4304-ad99-4ea17ebffa83"
+        }
+      ]
+    }
+  ]
+}

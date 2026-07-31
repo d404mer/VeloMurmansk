@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Настройки — VELO Limetime</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css" crossorigin="anonymous">
+  <style>
+    .setup-page { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+    .category-row { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #444; }
+    .preview { font-size: 12px; color: #aaa; margin-top: 6px; word-break: break-all; }
+    .preview-error { color: #ff8a8a; }
+    .preview-ok { color: #8aff8a; }
+    .status-msg { margin-top: 16px; }
+    .status-error { color: #ff8a8a; }
+    .status-ok { color: #8aff8a; }
+    label { margin-bottom: 4px; font-size: 14px; color: #ccc; }
+  </style>
+</head>
+<body id="app" v-cloak>
+  <div class="setup-page">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1>Настройки события</h1>
+      <a href="/" class="btn btn-outline-secondary">На главную</a>
+    </div>
+
+    <p class="text-muted mb-4">
+      Вставьте Limetime-ссылки для каждой категории. Формат:
+      <code>.../results/get/{raceGuid}/{stageGuid}/{categoryGuid}</code>
+    </p>
+
+    <div class="row mb-4">
+      <div class="col-md-6 mb-3">
+        <label>Название события</label>
+        <input type="text" class="form-control" v-model="eventName">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label>ID события</label>
+        <input type="text" class="form-control" v-model="eventId">
+      </div>
+    </div>
+
+    <div v-if="raceGuid" class="mb-4 preview preview-ok">
+      raceGuid: {{ raceGuid }}
+    </div>
+
+    <div v-for="(cat, index) in categories" :key="cat.id" class="category-row">
+      <div class="row">
+        <div class="col-md-3 mb-2">
+          <label>Название</label>
+          <input type="text" class="form-control" v-model="cat.name">
+        </div>
+        <div class="col-md-2 mb-2">
+          <label>ID</label>
+          <input type="text" class="form-control" v-model="cat.id">
+        </div>
+        <div class="col-md-7 mb-2">
+          <label>Limetime URL</label>
+          <input
+            type="text"
+            class="form-control"
+            v-model="cat.url"
+            @input="parseCategory(index)"
+            @paste="onPaste(index)"
+            placeholder="https://services-results.limetime.io/results/get/..."
+          >
+        </div>
+      </div>
+      <div v-if="cat.parseError" class="preview preview-error">{{ cat.parseError }}</div>
+      <div v-else-if="cat.stageGuid" class="preview preview-ok">
+        stageGuid: {{ cat.stageGuid }} · categoryGuid: {{ cat.categoryGuid }}
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-success" @click="save" :disabled="saving">
+        {{ saving ? 'Сохранение...' : 'Сохранить' }}
+      </button>
+      <a href="/" class="btn btn-secondary">Отмена</a>
+    </div>
+
+    <div v-if="statusMessage" class="status-msg" :class="statusOk ? 'status-ok' : 'status-error'">
+      {{ statusMessage }}
+    </div>
+  </div>
+
+  <script src="js/axios.min.js"></script>
+  <script src="js/vue.global.js"></script>
+  <script type="module" src="js/config.js"></script>
+</body>
+</html>
