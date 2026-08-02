@@ -28,10 +28,16 @@
           <a href="/config" class="btn btn-outline-light">Настройки</a>
           <a href="/laps" class="btn btn-outline-light" target="_blank">Плашки кругов</a>
           <a href="/laps?test=1" class="btn btn-outline-secondary" target="_blank">Тест плашек</a>
+          <button type="button" class="btn btn-warning" @click="toggleFreeze">
+            {{ dataFrozen ? 'Снять заморозку' : 'Заморозить данные' }}
+          </button>
         </div>
 
         <div class="meta-bar">
           <div>Режим: <strong>{{ modeLabel }}</strong></div>
+          <div v-if="dataFrozen" style="color:#ffd166"><strong>Данные заморожены</strong> (vMix и плашки не обновляются)</div>
+          <div v-if="dataFrozen && frozenAt">Заморожено: {{ frozenAt }}</div>
+          <div v-if="!dataFrozen && liveMode && liveMode !== mode">Live в API: {{ liveModeLabel }}</div>
           <div v-if="lastUpdated">Обновлено: {{ lastUpdated }}</div>
           <div v-if="lastExport">Excel: {{ lastExport.filename }}</div>
           <div v-if="lastError" style="color:#ff8a8a">Ошибка: {{ lastError }}</div>
@@ -59,8 +65,10 @@
 
       <div style="height: 300px;"></div>
       <div class="footer">
-        <button type="button" class="btn btn-primary" @click='vmixCommand("lider")'>LIDER</button>
-        <button type="button" class="btn btn-primary" @click='vmixCommand("lider4")'>LIDER4</button>
+        <button type="button" class="btn btn-primary" @click='vmixCommand("winner1")'>WINNER 1</button>
+        <button type="button" class="btn btn-primary" @click='vmixCommand("winner2")'>WINNER 2</button>
+        <button type="button" class="btn btn-primary" @click='vmixCommand("winner3")'>WINNER 3</button>
+        <button type="button" class="btn btn-primary" @click='vmixCommand("winners")'>WINNERS</button>
       </div>
     </div>
   </div>

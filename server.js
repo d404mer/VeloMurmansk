@@ -7,6 +7,7 @@ const { transformResults } = require('./lib/transform');
 const { exportDataFile } = require('./lib/excelExport');
 const { createSetupRoutes } = require('./lib/setupRoutes');
 const { createLapTracker } = require('./lib/lapTracker');
+const { createVmixPusher } = require('./lib/vmixPush');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
@@ -21,11 +22,21 @@ let config = loadConfig();
 let connection = null;
 let vmixConnected = false;
 let raceData = emptyRaceData();
+let dataFrozen = false;
+let frozenSnapshot = null;
 let pollTimer = null;
 let isFetching = false;
 const lapTracker = createLapTracker();
 const sseClients = [];
 let replayTimer = null;
+
+const vmixPusher = createVmixPusher(() => ({
+  connected: vmixConnected,
+  client: connection,
+  onError: () => {
+    vmixConnected = false;
+  },
+}));
 
 function emptyRaceData() {
   return {
@@ -41,6 +52,15 @@ function emptyRaceData() {
     lastError: null,
     lastExport: null,
   };
+}
+
+function cloneData(data) {
+  return JSON.parse(JSON.stringify(data));
+}
+
+function getDisplayData() {
+  if (dataFrozen && frozenSnapshot) return frozenSnapshot;
+  return raceData;
 }
 
 function loadConfig() {
@@ -75,81 +95,8 @@ function initVmix() {
   });
 }
 
-function updateTpl(tpl, name, val) {
-  if (!connection || !vmixConnected) return;
-  try {
-    connection.send({
-      Function: 'SetText',
-      Input: tpl,
-      SelectedName: name,
-      Value: val ?? '',
-    });
-  } catch (err) {
-    vmixConnected = false;
-  }
-}
-
-function fillVmixRow(title, rowIndex, athlete, globalPlace) {
-  updateTpl(title, `place ${rowIndex}.Text`, globalPlace ?? athlete.место ?? '');
-  updateTpl(title, `num ${rowIndex}.Text`, athlete.номер ?? '');
-  updateTpl(title, `name ${rowIndex}.Text`, athlete.участник ?? '');
-  updateTpl(title, `city ${rowIndex}.Text`, athlete.клуб ?? '');
-  updateTpl(title, `club ${rowIndex}.Text`, athlete.клуб ?? '');
-  updateTpl(title, `age ${rowIndex}.Text`, athlete.возраст ?? '');
-  updateTpl(title, `result ${rowIndex}.Text`, athlete.результат ?? '');
-  updateTpl(title, `gap ${rowIndex}.Text`, athlete.доЛидера ?? '');
-}
-
-function clearVmixRow(title, rowIndex, globalPlace) {
-  fillVmixRow(title, rowIndex, {}, globalPlace);
-}
-
 function pushResultsToVmix(data) {
-  if (!config.vmix?.autoUpdate || !vmixConnected) return;
-
-  const list = data.displayList;
-  let page = -1;
-
-  for (let i = 0; i < 50; i++) {
-    if (i % 10 === 0) page++;
-    const offset = page * 10 - 1;
-    const title = `res${page + 1}`;
-    if (i < list.length) {
-      fillVmixRow(title, i - offset, list[i], i + 1);
-    } else {
-      clearVmixRow(title, i - offset, i + 1);
-    }
-  }
-
-  page = -1;
-  for (let i = 0; i < 50; i++) {
-    if (i % 10 === 0) page++;
-    const offset = page * 10 - 1;
-    const title = `startlist${page + 1}`;
-    if (i < data.startList.length) {
-      const at = data.startList[i];
-      updateTpl(title, `num ${i - offset}.Text`, at.номер ?? '');
-      updateTpl(title, `name ${i - offset}.Text`, at.участник ?? '');
-      updateTpl(title, `city ${i - offset}.Text`, at.клуб ?? '');
-      updateTpl(title, `club ${i - offset}.Text`, at.клуб ?? '');
-      updateTpl(title, `age ${i - offset}.Text`, at.возраст ?? '');
-    } else {
-      clearVmixRow(title, i - offset, i + 1);
-    }
-  }
-
-  for (let i = 0; i < 4; i++) {
-    const title = 'liders4';
-    if (i < data.leaders.length) {
-      fillVmixRow(title, i + 1, data.leaders[i], i + 1);
-    } else {
-      clearVmixRow(title, i + 1, i + 1);
-    }
-  }
-
-  if (data.leaders.length) {
-    fillVmixRow('lider', 1, data.leaders[0], 1);
-  }
+  vmixPusher.pushAll(config, data);
 }
 
 async function fetchCategoryRaw(event, category) {
@@ -171,6 +118,7 @@ function resolveCategoryId(requestedId) {
 }
 
 function broadcastLapEvent(event) {
+  if (dataFrozen) return;
   const payload = `data: ${JSON.stringify(event)}\n\n`;
   for (const client of sseClients) {
     if (client.categoryId && client.categoryId !== event.categoryId) continue;
@@ -179,11 +127,13 @@ function broadcastLapEvent(event) {
 }
 
 function deliverLapEvent(event) {
+  if (dataFrozen) return;
   lapTracker.publishEvent(event.categoryId, event);
   broadcastLapEvent(event);
 }
 
 function broadcastLapEvents(newEvents) {
+  if (dataFrozen) return;
   for (const event of newEvents) {
     broadcastLapEvent(event);
   }
@@ -274,9 +224,14 @@ async function refreshData() {
         lastError: null,
         lastExport: raceData.lastExport,
       };
-      pushResultsToVmix(raceData);
 
-      if (activeRaw) {
+      if (dataFrozen && frozenSnapshot) {
+        frozenSnapshot.lastExport = raceData.lastExport;
+      }
+
+      pushResultsToVmix(getDisplayData());
+
+      if (activeRaw && !dataFrozen) {
         const newLapEvents = lapTracker.processRawAthletes(activeCategory.id, activeRaw);
         broadcastLapEvents(newLapEvents);
       }
@@ -323,20 +278,42 @@ app.get('/', (req, res) => {
 
 app.get('/api/config', (req, res) => {
   const event = getActiveEvent();
+  const display = getDisplayData();
   res.json({
     activeEventId: config.activeEventId,
     activeCategoryId: config.activeCategoryId,
     pollIntervalMs: config.pollIntervalMs,
+    dataFrozen,
     events: config.events.map((e) => ({
       id: e.id,
       name: e.name,
       categories: e.categories.map((c) => ({ id: c.id, name: c.name })),
     })),
     activeEventName: event?.name || '',
-    mode: raceData.mode,
+    mode: display.mode,
+    liveMode: raceData.mode,
     lastUpdated: raceData.lastUpdated,
+    frozenAt: dataFrozen ? frozenSnapshot?.lastUpdated || null : null,
     lastError: raceData.lastError,
     lastExport: raceData.lastExport,
+  });
+});
+
+app.post('/api/freeze', (req, res) => {
+  const frozen = !!req.body?.frozen;
+  dataFrozen = frozen;
+  if (frozen) {
+    frozenSnapshot = cloneData(raceData);
+    pushResultsToVmix(frozenSnapshot);
+  } else {
+    frozenSnapshot = null;
+    pushResultsToVmix(raceData);
+  }
+  res.json({
+    ok: true,
+    dataFrozen,
+    frozenAt: frozenSnapshot?.lastUpdated || null,
+    mode: getDisplayData().mode,
   });
 });
 
@@ -351,13 +328,13 @@ app.post('/api/category', async (req, res) => {
   await refreshData();
   res.json({
     ok: true,
-    mode: raceData.mode,
-    count: raceData.displayList.length,
+    mode: getDisplayData().mode,
+    count: getDisplayData().displayList.length,
   });
 });
 
 app.post('/sheet1', (req, res) => {
-  res.send(raceData.displayList);
+  res.send(getDisplayData().displayList);
 });
 
 app.post('/export', async (req, res) => {
@@ -371,18 +348,14 @@ app.post('/export', async (req, res) => {
 
 app.post('/updateData', async (req, res) => {
   await refreshData();
-  res.json({ ok: true, mode: raceData.mode, count: raceData.displayList.length });
+  res.json({ ok: true, mode: getDisplayData().mode, count: getDisplayData().displayList.length });
 });
 
 app.post('/row1', (req, res) => {
   const startIndex = req.body.index;
   res.status(200).send(startIndex.toString());
-
-  for (let i = 1; i <= 10; i++) {
-    const athlete = req.body.item?.[i - 1];
-    fillVmixRow('result', i, athlete || {}, startIndex * 10 + i);
-    fillVmixRow('startlist', i, athlete || {}, startIndex * 10 + i);
-  }
+  vmixPusher.pushManualPage(config, req.body.item || [], startIndex, 'result');
+  vmixPusher.pushManualPage(config, req.body.item || [], startIndex, 'startlist');
 });
 
 app.get('/laps', (req, res) => {
@@ -413,11 +386,16 @@ app.get('/api/laps/recent', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.json({
     ok: true,
-    events: lapTracker.getRecentEvents(categoryId, limit),
+    dataFrozen,
+    events: dataFrozen ? [] : lapTracker.getRecentEvents(categoryId, limit),
   });
 });
 
 app.post('/api/laps/simulate', (req, res) => {
+  if (dataFrozen) {
+    res.status(409).json({ ok: false, error: 'Data is frozen' });
+    return;
+  }
   const categoryId = resolveCategoryId(req.body?.categoryId);
   const event = lapTracker.addManualEvent(categoryId, req.body || {});
   broadcastLapEvent(event);
@@ -425,6 +403,11 @@ app.post('/api/laps/simulate', (req, res) => {
 });
 
 app.post('/api/laps/replay', (req, res) => {
+  if (dataFrozen) {
+    res.status(409).json({ ok: false, error: 'Data is frozen' });
+    return;
+  }
+
   const categoryId = resolveCategoryId(req.query.categoryId || req.body?.categoryId);
   const delayMs = Number(req.query.delayMs || req.body?.delayMs) || 800;
 
@@ -458,25 +441,7 @@ app.post('/api/laps/replay', (req, res) => {
 
 app.post('/vmixCommand', (req, res) => {
   const command = req.body.data;
-  const leaders = raceData.leaders.length ? raceData.leaders : raceData.displayList;
-
-  switch (command) {
-    case 'lider':
-      if (leaders[0]) {
-        fillVmixRow('lider', 1, leaders[0], 1);
-        if (vmixConnected) connection.send({ Function: 'OverlayInput1', Input: 'lider' });
-      }
-      break;
-    case 'lider4':
-      for (let k = 1; k <= 4; k++) {
-        fillVmixRow('lider4', k, leaders[k - 1] || {}, k);
-      }
-      if (vmixConnected) connection.send({ Function: 'OverlayInput1', Input: 'lider4' });
-      break;
-    default:
-      break;
-  }
-
+  vmixPusher.pushWinnerOverlay(config, command, getDisplayData());
   res.send('ok');
 });
 

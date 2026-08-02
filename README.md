@@ -2,6 +2,10 @@
 
 Приложение для трансляции велогонок: получает результаты из Limetime, показывает их в браузере, выводит в vMix и сохраняет в Excel.
 
+**Полный гайд:** [GUIDE.md](GUIDE.md) — установка, эфир, vMix, плашки, заморозка, troubleshooting.
+
+**Архитектура:** [docs/](docs/README.md) — структура проекта, потоки данных, модули, API.
+
 ## Требования
 
 - Node.js 18+
@@ -11,7 +15,7 @@
 ## Быстрый старт
 
 ```powershell
-cd "D:\Для работы с судейкой\velo\new"
+cd "D:\Для работы с судейкой\velo"
 npm install
 node server.js
 ```
@@ -68,7 +72,16 @@ https://services-results.limetime.io/results/get/{raceGuid}/{stageGuid}/{categor
   "pollIntervalMs": 5000,
   "vmix": {
     "host": "localhost",
-    "autoUpdate": true
+    "autoUpdate": true,
+    "templates": {
+      "resultsPage": "res{page}",
+      "startlistPage": "startlist{page}",
+      "winner1": "winner1",
+      "winner2": "winner2",
+      "winner3": "winner3",
+      "winners": "winners"
+    },
+    "fields": { ... }
   },
   "activeEventId": "xcochamp2025",
   "activeCategoryId": "junior_women",
@@ -81,7 +94,9 @@ https://services-results.limetime.io/results/get/{raceGuid}/{stageGuid}/{categor
 | `pollIntervalMs` | Как часто обновлять данные (мс), по умолчанию 5000 |
 | `vmix.host` | Адрес vMix TCP API, обычно `localhost` |
 | `vmix.autoUpdate` | Автоматически слать данные в vMix при каждом обновлении |
-| `activeCategoryId` | Категория, которая показывается на главной странице |
+| `vmix.templates` | Имена Inputs в vMix (см. ниже) |
+| `vmix.fields` | Имена текстовых полей в GT (по умолчанию `place {row}.Text` и т.д.) |
+| `activeCategoryId` | Категория на главной и для vMix / плашек |
 
 После правки `config.json` перезапустите сервер.
 
@@ -95,7 +110,27 @@ https://services-results.limetime.io/results/get/{raceGuid}/{stageGuid}/{categor
 - **Обновить** — принудительный запрос данных
 - **Сохранить в Excel** — записать `exports/data.xlsx`
 - **Страницы списка** — клик по странице отправляет 10 строк в vMix (`result` / `startlist`)
-- **LIDER / LIDER4** — вывести лидера(ов) в vMix
+- **WINNER 1 / 2 / 3 / WINNERS** — персональные титры и тройной титр (вкладка winners в vMix)
+- **Заморозить данные** — после финиша зафиксировать снимок для vMix и плашек (Limetime и Excel продолжают обновляться)
+
+### Плашки кругов (`/laps`)
+
+Browser Source для vMix/OBS — отсечки под таймер. Появляются при новом пройденном круге.
+
+- Эфир: `http://localhost:3000/laps`
+- Тест: `/laps?demo=1` или `/laps?test=1`
+- Настройка позиции: URL-параметры `left`, `width`, `top` или CSS-переменные в `public/css/laps.css`
+
+### Заморозка данных
+
+После гонки Limetime может «скакать» (пересчёт мест, правки ФИО). Кнопка **«Заморозить данные»**:
+
+- vMix получает зафиксированный снимок
+- новые плашки на `/laps` не появляются
+- Excel и фоновый poll Limetime продолжают работать
+- **«Снять заморозку»** — снова live в vMix
+
+API: `POST /api/freeze` с телом `{ "frozen": true|false }`.
 
 ### Excel (`exports/data.xlsx`)
 
@@ -105,13 +140,25 @@ https://services-results.limetime.io/results/get/{raceGuid}/{stageGuid}/{categor
 
 Данные обновляются автоматически каждые 5 секунд (если файл не занят).
 
-### vMix
+### vMix — куда идут данные
 
-Шаблоны, которые заполняются автоматически:
+| Тип данных | Куда | Когда |
+|------------|------|-------|
+| Стартовый лист | `startlist1`…`startlist5` | Всегда из `startList` |
+| Результаты live | `res1`…`res5` | `liveList`, пока гонка идёт |
+| Результаты финал | `res1`…`res5` | `finalList`, когда все финишировали |
+| Лидер 1–3 (персон.) | `winner1`, `winner2`, `winner3` | Топ-3, кнопки WINNER 1/2/3 |
+| Тройной титр | `winners` | 3 строки, кнопка WINNERS |
+| Отсечки (круги) | Browser `/laps` | Не TCP, отдельный Browser Source |
+| Круги (детально) | Excel | Лист «Круги» в export, не vMix |
 
-- `res1`–`res5` — промежуточные/финальные результаты
-- `startlist1`–`startlist5` — стартовые листы
-- `lider`, `lider4` — лидеры
+Имена Inputs настраиваются в `config.json` → `vmix.templates`. `{page}` подставляется номером страницы (1–5).
+
+Legacy: если в vMix ещё `lider` / `liders4`, укажите их в `vmix.legacy`:
+
+```json
+"legacy": { "winner1": "lider", "winners": "liders4" }
+```
 
 ---
 
@@ -182,7 +229,7 @@ node server.js
 1. vMix запущен на том же компьютере.
 2. В vMix: Settings → Web Controller → TCP API включён.
 3. В `config.json`: `"vmix": { "host": "localhost", "autoUpdate": true }`.
-4. Имена шаблонов в vMix совпадают с ожидаемыми (`res1`, `startlist1`, `lider` и т.д.).
+4. Имена шаблонов в vMix совпадают с `vmix.templates` в config (по умолчанию `res1`, `startlist1`, `winner1`…).
 
 ---
 
@@ -209,22 +256,23 @@ https://services-results.limetime.io/results/get/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxx
 ## Структура проекта
 
 ```
-velo/new/
-├── server.js           — сервер, опрос API, vMix, Excel
-├── config.json         — настройки событий и категорий
+velo/
+├── server.js
+├── config.json
 ├── lib/
-│   ├── limetime.js     — запросы к Limetime API
-│   ├── transform.js    — преобразование данных
-│   ├── excelExport.js  — экспорт в data.xlsx
-│   ├── parseLimetimeUrl.js
-│   ├── configEditor.js
-│   └── setupRoutes.js  — API страницы /config
+│   ├── limetime.js
+│   ├── transform.js
+│   ├── excelExport.js
+│   ├── vmixConfig.js    — defaults для vMix
+│   ├── vmixPush.js      — отправка в vMix
+│   ├── lapTracker.js    — плашки кругов
+│   └── setupRoutes.js
 ├── public/
-│   ├── index.html      — главная страница
-│   ├── config.html     — настройка через ссылки
-│   └── js/
+│   ├── index.html
+│   ├── laps.html        — Browser Source отсечек
+│   └── config.html
 └── exports/
-    └── data.xlsx       — результат экспорта
+    └── data.xlsx
 ```
 
 ---

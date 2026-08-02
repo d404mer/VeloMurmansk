@@ -8,6 +8,9 @@ Vue.createApp({
       activeCategoryId: '',
       activeEventId: '',
       mode: 'start',
+      liveMode: 'start',
+      dataFrozen: false,
+      frozenAt: '',
       lastUpdated: '',
       lastError: '',
       lastExport: null,
@@ -17,6 +20,11 @@ Vue.createApp({
     modeLabel() {
       if (this.mode === 'live') return 'Промежуточные (live)';
       if (this.mode === 'final') return 'Финал';
+      return 'Стартовый лист';
+    },
+    liveModeLabel() {
+      if (this.liveMode === 'live') return 'Промежуточные (live)';
+      if (this.liveMode === 'final') return 'Финал';
       return 'Стартовый лист';
     },
   },
@@ -29,6 +37,12 @@ Vue.createApp({
 
     vmixCommand(com) {
       axios.post('/vmixCommand', { data: com });
+    },
+
+    toggleFreeze() {
+      axios
+        .post('/api/freeze', { frozen: !this.dataFrozen })
+        .then(() => this.loadState());
     },
 
     changeCategory() {
@@ -59,6 +73,9 @@ Vue.createApp({
         this.activeCategoryId = res.data.activeCategoryId;
         this.activeEventId = res.data.activeEventId;
         this.mode = res.data.mode;
+        this.liveMode = res.data.liveMode || res.data.mode;
+        this.dataFrozen = !!res.data.dataFrozen;
+        this.frozenAt = res.data.frozenAt || '';
         this.lastUpdated = res.data.lastUpdated || '';
         this.lastError = res.data.lastError || '';
         this.lastExport = res.data.lastExport;

@@ -8,7 +8,33 @@
   "pollIntervalMs": 5000,
   "vmix": {
     "host": "localhost",
-    "autoUpdate": true
+    "autoUpdate": true,
+    "pageSize": 10,
+    "maxPages": 5,
+    "templates": {
+      "resultsPage": "res{page}",
+      "startlistPage": "startlist{page}",
+      "winner1": "winner1",
+      "winner2": "winner2",
+      "winner3": "winner3",
+      "winners": "winners",
+      "resultManual": "result",
+      "startlistManual": "startlist"
+    },
+    "legacy": {
+      "winner1": "lider",
+      "winners": "liders4"
+    },
+    "fields": {
+      "place": "place {row}.Text",
+      "num": "num {row}.Text",
+      "name": "name {row}.Text",
+      "city": "city {row}.Text",
+      "club": "club {row}.Text",
+      "age": "age {row}.Text",
+      "result": "result {row}.Text",
+      "gap": "gap {row}.Text"
+    }
   },
   "activeEventId": "xcochamp2025",
   "activeCategoryId": "men",
