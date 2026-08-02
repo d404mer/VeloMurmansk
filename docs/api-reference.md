@@ -260,6 +260,14 @@ Polling для Browser Source (рекомендуемый способ).
 {
   "ok": true,
   "dataFrozen": false,
+  "lapState": {
+    "completedLap": 5,
+    "currentLap": 6,
+    "leaderName": "АНТОН СИНЦОВ",
+    "leaderNumber": 23,
+    "splitTime": "1:24:32",
+    "updatedAt": "2026-08-02T19:00:00.000Z"
+  },
   "events": [
     {
       "id": "men-42:3:1:23:45-a1b2c3d4",
@@ -278,6 +286,24 @@ Polling для Browser Source (рекомендуемый способ).
 При `dataFrozen: true` массив `events` всегда пустой.
 
 Клиент должен дедuplicate по `id` — одни и те же события могут приходить повторно в `recent`.
+
+---
+
+### GET `/api/laps/status`
+
+Состояние отсчёта кругов лидера для категории.
+
+---
+
+### POST `/api/laps/simulate-leader`
+
+Тестовая отсечка лидера. **409** если frozen.
+
+---
+
+### POST `/api/laps/reset`
+
+Сброс счётчика кругов категории.
 
 ---
 
@@ -314,7 +340,7 @@ Query: `categoryId` — фильтр (опционально).
 
 ### POST `/api/laps/replay`
 
-Воспроизведение всех кругов из `raceData.lapDetails` с задержкой (демо/отладка).
+Воспроизведение **кругов лидера** из `raceData.lapDetails` (только `groupRacePosition === 1`) с задержкой (демо/отладка).
 
 **Query или body:**
 

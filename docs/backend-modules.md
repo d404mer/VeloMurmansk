@@ -67,7 +67,7 @@ module.exports = { COLUMNS, transformResults, formatGap };
 
 ## lapTracker.js
 
-**Назначение:** Отслеживание **новых** завершённых кругов и хранение истории событий для `/laps`.
+**Назначение:** Отслеживание **отсечек лидера** и хранение `lapState` / событий для `/laps`, vMix и Excel.
 
 ### Фабрика
 
@@ -79,19 +79,17 @@ const lapTracker = createLapTracker();
 
 | Структура | Содержимое |
 |-----------|------------|
-| `seenLaps` | Set ключей `"номер:lapNumber:totalTime"` |
-| `initialized` | Set categoryId — после первого poll категория «прогрета» |
-| `events` | Массив последних событий (макс. 50 на категорию) |
+| `lastLeaderLapNumber` | Последний учтённый круг лидера |
+| `lapState` | `{ completedLap, currentLap, leaderName, leaderNumber, splitTime, updatedAt }` |
+| `initialized` | Set categoryId — после первого poll |
+| `events` | Массив последних событий (макс. 50) |
 
 ### Алгоритм `processRawAthletes(categoryId, rawAthletes)`
 
-1. Для каждого участника и каждого круга с `isOnLap && totalTime`:
-   - если ключ уже в `seenLaps` — пропуск;
-   - иначе добавить в `seenLaps`;
-   - если это **первый poll** категории — не создавать событие;
-   - иначе — `buildEvent()` и push в `events`.
-2. Пометить категорию как initialized.
-3. Вернуть массив **новых** событий текущего poll.
+1. Найти лидера (`position === 1`).
+2. Взять последний завершённый круг лидера.
+3. Первый poll — сохранить `lapState`, без плашек.
+4. Если номер круга вырос — событие + `currentLap = completedLap + 1`.
 
 ### Формат имени на плашке
 
@@ -102,6 +100,8 @@ const lapTracker = createLapTracker();
 | Метод | Назначение |
 |-------|------------|
 | `initCategory(id)` | Сброс при смене категории |
+| `getLapState(id)` | Текущий круг для API/UI |
+| `simulateLeaderLap(id, fields)` | Тест +1 круг |
 | `getRecentEvents(id, limit)` | Последние N событий для polling |
 | `addManualEvent(id, fields)` | Тестовое событие (`/api/laps/simulate`) |
 | `publishEvent(id, event)` | Публикация replay-события |

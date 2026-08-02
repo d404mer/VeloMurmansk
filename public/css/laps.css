@@ -184,6 +184,13 @@ body {
   display: none;
 }
 
+.lap-status {
+  width: 100%;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #ccc;
+}
+
 .test-panel button {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;

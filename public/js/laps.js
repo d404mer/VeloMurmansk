@@ -29,6 +29,7 @@
 
   const track = document.getElementById('plaque-track');
   const testPanel = document.getElementById('test-panel');
+  const lapStatusEl = document.getElementById('lap-status');
   const plaques = [];
   const eventQueue = [];
   const seenEventIds = new Set();
@@ -195,6 +196,16 @@
     }, DEMO_MS);
   }
 
+  function updateLapStatus(lapState) {
+    if (!lapStatusEl || !lapState) return;
+    const parts = [
+      lapState.lapLabel || (lapState.currentLap ? `Круг ${lapState.currentLap}` : ''),
+      lapState.leaderName || '',
+      lapState.splitTime ? `(${lapState.splitTime})` : '',
+    ].filter(Boolean);
+    lapStatusEl.textContent = parts.join(' · ');
+  }
+
   function pollUrl() {
     const parts = [];
     if (categoryId) parts.push(`categoryId=${encodeURIComponent(categoryId)}`);
@@ -209,6 +220,10 @@
         const res = await fetch(pollUrl(), { cache: 'no-store' });
         const data = await res.json();
         if (!data.ok || !Array.isArray(data.events)) return;
+
+        if (data.lapState) {
+          updateLapStatus(data.lapState);
+        }
 
         const sorted = [...data.events].sort((a, b) => {
           const ta = new Date(a.at || 0).getTime();
@@ -226,6 +241,14 @@
 
     poll();
     setInterval(poll, POLL_MS);
+  }
+
+  async function simulateLeaderLap() {
+    await fetch('/api/laps/simulate-leader', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryId: categoryId || undefined }),
+    });
   }
 
   async function simulateRandom() {
@@ -256,6 +279,7 @@
   if (isTest) {
     testPanel.classList.remove('hidden');
     document.getElementById('btn-random').addEventListener('click', simulateRandom);
+    document.getElementById('btn-sim-leader').addEventListener('click', simulateLeaderLap);
     document.getElementById('btn-replay').addEventListener('click', replayFromApi);
     document.getElementById('btn-clear').addEventListener('click', clearPlaques);
   }

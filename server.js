@@ -4,10 +4,11 @@ const express = require('express');
 const { ConnectionTCP } = require('node-vmix');
 const { fetchResults } = require('./lib/limetime');
 const { transformResults } = require('./lib/transform');
-const { exportDataFile } = require('./lib/excelExport');
+const { exportDataFile, lapStateToArray } = require('./lib/excelExport');
 const { createSetupRoutes } = require('./lib/setupRoutes');
 const { createLapTracker } = require('./lib/lapTracker');
 const { createVmixPusher } = require('./lib/vmixPush');
+const { buildSetupView } = require('./lib/configEditor');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
@@ -152,14 +153,38 @@ function participantToOverlayName(participant) {
 function lapDetailToEvent(categoryId, row, index) {
   return {
     id: `replay-${categoryId}-${index}-${row.номер}-${row.lapNumber}`,
-    place: row.groupRacePosition ?? '',
+    place: row.groupRacePosition ?? '1',
     number: row.номер ?? '',
     name: participantToOverlayName(row.участник),
     gap: row.leaderDifference ?? '',
     lapNumber: row.lapNumber ?? '',
+    splitTime: row.totalTime ?? '',
     at: new Date(Date.now() + index).toISOString(),
     categoryId,
   };
+}
+
+function getCategoryTotalLaps(category) {
+  const value = Number(category?.totalLaps);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function syncLapTrackerFromConfig() {
+  const event = getActiveEvent();
+  if (!event) return;
+  for (const category of event.categories) {
+    lapTracker.setTotalLaps(category.id, getCategoryTotalLaps(category));
+  }
+}
+
+function handleLapPollResult(categoryId, result) {
+  if (dataFrozen || !result) return;
+  if (result.plaqueEvents?.length) {
+    broadcastLapEvents(result.plaqueEvents);
+  }
+  if (categoryId === config.activeCategoryId && result.counterUpdated) {
+    vmixPusher.pushLapCounter(config, lapTracker.getLapState(categoryId));
+  }
 }
 
 async function saveExcel(event, categoryResults) {
@@ -173,8 +198,13 @@ async function saveExcel(event, categoryResults) {
     };
   });
 
+  const activeCategory = getActiveCategory(event);
+  const broadcastRows = activeCategory
+    ? [lapStateToArray(activeCategory.name, lapTracker.getLapState(activeCategory.id))]
+    : [];
+
   try {
-    const exportResult = await exportDataFile(categories, EXPORTS_DIR);
+    const exportResult = await exportDataFile(categories, EXPORTS_DIR, broadcastRows);
     raceData.lastExport = exportResult;
     return exportResult;
   } catch (err) {
@@ -231,9 +261,19 @@ async function refreshData() {
 
       pushResultsToVmix(getDisplayData());
 
-      if (activeRaw && !dataFrozen) {
-        const newLapEvents = lapTracker.processRawAthletes(activeCategory.id, activeRaw);
-        broadcastLapEvents(newLapEvents);
+      if (!dataFrozen) {
+        for (const category of event.categories) {
+          const raw = categoryRaw.get(category.id);
+          if (!raw) continue;
+          const result = lapTracker.processRawAthletes(
+            category.id,
+            raw,
+            getCategoryTotalLaps(category)
+          );
+          if (category.id === activeCategory.id) {
+            handleLapPollResult(category.id, result);
+          }
+        }
       }
     } else {
       raceData.lastError = `Failed to load ${activeCategory.name}`;
@@ -256,6 +296,7 @@ function startPolling() {
 }
 
 async function onConfigSaved() {
+  syncLapTrackerFromConfig();
   startPolling();
   await refreshData();
 }
@@ -279,9 +320,12 @@ app.get('/', (req, res) => {
 app.get('/api/config', (req, res) => {
   const event = getActiveEvent();
   const display = getDisplayData();
+  const setup = buildSetupView(config);
+  const activeCategorySetup = setup.categories.find((c) => c.id === config.activeCategoryId);
   res.json({
     activeEventId: config.activeEventId,
     activeCategoryId: config.activeCategoryId,
+    activeCategoryUrl: activeCategorySetup?.url || '',
     pollIntervalMs: config.pollIntervalMs,
     dataFrozen,
     events: config.events.map((e) => ({
@@ -296,6 +340,9 @@ app.get('/api/config', (req, res) => {
     frozenAt: dataFrozen ? frozenSnapshot?.lastUpdated || null : null,
     lastError: raceData.lastError,
     lastExport: raceData.lastExport,
+    resultCount: display.displayList?.length ?? 0,
+    lapState: lapTracker.getLapState(config.activeCategoryId),
+    totalLaps: getCategoryTotalLaps(getActiveCategory(event)),
   });
 });
 
@@ -323,6 +370,8 @@ app.post('/api/category', async (req, res) => {
   if (categoryId) {
     config.activeCategoryId = categoryId;
     lapTracker.initCategory(categoryId);
+    const cat = getActiveCategory(getActiveEvent());
+    if (cat) lapTracker.setTotalLaps(categoryId, getCategoryTotalLaps(cat));
   }
   saveConfig();
   await refreshData();
@@ -387,8 +436,74 @@ app.get('/api/laps/recent', (req, res) => {
   res.json({
     ok: true,
     dataFrozen,
+    lapState: lapTracker.getLapState(categoryId),
     events: dataFrozen ? [] : lapTracker.getRecentEvents(categoryId, limit),
   });
+});
+
+app.get('/api/laps/status', (req, res) => {
+  const categoryId = resolveCategoryId(req.query.categoryId);
+  const events = lapTracker.getRecentEvents(categoryId, 1);
+  res.json({
+    ok: true,
+    dataFrozen,
+    categoryId,
+    lapState: lapTracker.getLapState(categoryId),
+    lastEvent: events.length ? events[events.length - 1] : null,
+  });
+});
+
+app.post('/api/laps/simulate-leader', (req, res) => {
+  if (dataFrozen) {
+    res.status(409).json({ ok: false, error: 'Data is frozen' });
+    return;
+  }
+  const categoryId = resolveCategoryId(req.body?.categoryId);
+  const result = lapTracker.simulateLeaderLap(categoryId, req.body || {});
+  handleLapPollResult(categoryId, result);
+  res.json({
+    ok: true,
+    event: result.plaqueEvents?.[0] || null,
+    lapState: lapTracker.getLapState(categoryId),
+    counterUpdated: result.counterUpdated,
+  });
+});
+
+app.post('/api/laps/total-laps', (req, res) => {
+  const categoryId = resolveCategoryId(req.body?.categoryId);
+  const totalLaps = Number(req.body?.totalLaps);
+  if (!Number.isFinite(totalLaps) || totalLaps < 1) {
+    res.status(400).json({ ok: false, error: 'totalLaps must be a positive number' });
+    return;
+  }
+
+  const event = getActiveEvent();
+  const category = event?.categories.find((c) => c.id === categoryId);
+  if (!category) {
+    res.status(404).json({ ok: false, error: 'Category not found' });
+    return;
+  }
+
+  category.totalLaps = totalLaps;
+  saveConfig();
+  lapTracker.setTotalLaps(categoryId, totalLaps);
+
+  if (categoryId === config.activeCategoryId) {
+    vmixPusher.pushLapCounter(config, lapTracker.getLapState(categoryId));
+  }
+
+  res.json({
+    ok: true,
+    categoryId,
+    totalLaps,
+    lapState: lapTracker.getLapState(categoryId),
+  });
+});
+
+app.post('/api/laps/reset', (req, res) => {
+  const categoryId = resolveCategoryId(req.query.categoryId || req.body?.categoryId);
+  lapTracker.initCategory(categoryId);
+  res.json({ ok: true, categoryId, lapState: lapTracker.getLapState(categoryId) });
 });
 
 app.post('/api/laps/simulate', (req, res) => {
@@ -446,6 +561,7 @@ app.post('/vmixCommand', (req, res) => {
 });
 
 initVmix();
+syncLapTrackerFromConfig();
 refreshData().then(() => {
   startPolling();
   app.listen(PORT, () => {

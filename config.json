@@ -14,9 +14,9 @@
     "templates": {
       "resultsPage": "res{page}",
       "startlistPage": "startlist{page}",
-      "winner1": "winner1",
-      "winner2": "winner2",
-      "winner3": "winner3",
+      "winner1": "leader1",
+      "winner2": "leader2",
+      "winner3": "leader3",
       "winners": "winners",
       "resultManual": "result",
       "startlistManual": "startlist"
@@ -34,39 +34,51 @@
       "age": "age {row}.Text",
       "result": "result {row}.Text",
       "gap": "gap {row}.Text"
+    },
+    "lapCounter": {
+      "template": "lapcounter",
+      "fields": {
+        "lap": "lap.Text",
+        "leader": "leader.Text",
+        "time": "time.Text"
+      }
     }
   },
   "activeEventId": "xcochamp2025",
-  "activeCategoryId": "men",
+  "activeCategoryId": "junior_women",
   "events": [
     {
       "id": "xcochamp2025",
       "name": "Чемпионат России 2025",
-      "raceGuid": "3640aa26-e656-4e9c-8cc1-386984aa72f8",
+      "raceGuid": "6f132522-560b-4590-854f-e72a510b57cc",
       "categories": [
         {
           "id": "women",
           "name": "Женщины",
-          "stageGuid": "b750a142-552f-44d3-948b-59f3ae29be49",
-          "categoryGuid": "195f0f36-cc66-40e8-9760-ef86fe775f06"
+          "totalLaps": 85,
+          "stageGuid": "e85d8953-1ec8-474f-8cab-8685b9ca4a54",
+          "categoryGuid": "2cec894b-ff61-4c77-96ab-c16ffaa99a1c"
         },
         {
           "id": "men",
           "name": "Мужчины",
-          "stageGuid": "091b1724-a283-44d4-987a-c2abe8d5d62b",
-          "categoryGuid": "3ee40e8c-d047-45f0-b396-911bd3f5d1b0"
+          "totalLaps": 5,
+          "stageGuid": "ddbe6a4f-61e1-4d97-99a2-136c23155690",
+          "categoryGuid": "717944ed-c7d8-4316-93b0-0e82ea21656c"
         },
         {
           "id": "junior_women",
           "name": "Юниорки 17-18",
-          "stageGuid": "23ada076-5a9d-4038-be59-bdcb1f4f8da0",
-          "categoryGuid": "c3544851-1f23-4533-a0fa-f3ca2a917a01"
+          "totalLaps": 4,
+          "stageGuid": "702a955c-f357-4b59-8ccc-64e439dd2531",
+          "categoryGuid": "3b08ae1a-d492-4dfe-bdd1-be279911917e"
         },
         {
           "id": "junior_men",
           "name": "Юниоры 17-18",
-          "stageGuid": "6f54798d-cde1-41da-a940-4b29597b525f",
-          "categoryGuid": "7f9ccc85-9565-4304-ad99-4ea17ebffa83"
+          "totalLaps": 6,
+          "stageGuid": "2c46bcb6-5aa3-42ef-8d4c-f694d9cefca8",
+          "categoryGuid": "a5ebfa03-b14a-4eb1-8055-c91c27ee04a6"
         }
       ]
     }

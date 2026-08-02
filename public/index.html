@@ -7,15 +7,49 @@
   <link href="/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css" crossorigin="anonymous">
   <style>
-    .meta-bar { color: #ccc; margin-bottom: 12px; }
-    .athlete-row { font-size: 14px; line-height: 1.4; margin-bottom: 4px; }
+    .meta-bar { color: #ccc; margin-bottom: 12px; font-size: 14px; }
+    .meta-bar .api-url { word-break: break-all; font-size: 12px; opacity: 0.85; }
     .controls { margin-bottom: 16px; }
     .controls select, .controls button { margin-right: 8px; margin-bottom: 8px; }
+    .results-table-wrap { overflow-x: auto; margin-bottom: 24px; }
+    .results-table { width: 100%; font-size: 14px; color: #eee; border-collapse: collapse; }
+    .results-table th,
+    .results-table td { padding: 6px 10px; border-bottom: 1px solid #5a6268; vertical-align: top; }
+    .results-table th { color: #adb5bd; font-weight: 600; white-space: nowrap; }
+    .results-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+    .results-table .col-place { width: 56px; text-align: center; }
+    .results-table .col-num { white-space: nowrap; }
+    .results-table .col-result { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .results-table .col-gap { white-space: nowrap; color: #ffd166; }
+    .vmix-pages-title { color: #adb5bd; font-size: 13px; margin: 16px 0 8px; }
+    .athlete-row { display: grid; grid-template-columns: 40px 1fr 56px 72px 1fr 88px 72px; gap: 8px; font-size: 13px; line-height: 1.35; margin-bottom: 4px; align-items: baseline; }
+    .athlete-row span { overflow: hidden; text-overflow: ellipsis; }
+    .athlete-row .gap { color: #ffd166; }
+    .lap-panel {
+      background: #3d4650;
+      border: 1px solid #5a6268;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      color: #eee;
+      font-size: 14px;
+    }
+    .lap-panel h2 { font-size: 16px; margin: 0 0 10px; color: #fff; }
+    .lap-panel__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px 16px; margin-bottom: 12px; }
+    .lap-panel__label { color: #adb5bd; font-size: 12px; }
+    .lap-panel__value { font-weight: 600; }
+    .lap-panel__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .lap-panel__hint { margin: 0 0 10px; font-size: 12px; color: #adb5bd; }
+    .lap-panel__total-laps input { max-width: 72px; }
+    .page-wrap { padding-bottom: 72px; }
+    @media (max-width: 900px) {
+      .athlete-row { grid-template-columns: 1fr; gap: 2px; }
+    }
   </style>
 </head>
 <body id="app" v-cloak>
   <div class="row">
-    <div class="container">
+    <div class="container page-wrap">
       <div class="col">
         <h1>VELO Limetime</h1>
 
@@ -34,27 +68,100 @@
         </div>
 
         <div class="meta-bar">
-          <div>Режим: <strong>{{ modeLabel }}</strong></div>
+          <div>Режим: <strong>{{ modeLabel }}</strong> · участников: {{ resultCount }}</div>
           <div v-if="dataFrozen" style="color:#ffd166"><strong>Данные заморожены</strong> (vMix и плашки не обновляются)</div>
           <div v-if="dataFrozen && frozenAt">Заморожено: {{ frozenAt }}</div>
           <div v-if="!dataFrozen && liveMode && liveMode !== mode">Live в API: {{ liveModeLabel }}</div>
           <div v-if="lastUpdated">Обновлено: {{ lastUpdated }}</div>
           <div v-if="lastExport">Excel: {{ lastExport.filename }}</div>
           <div v-if="lastError" style="color:#ff8a8a">Ошибка: {{ lastError }}</div>
+          <div v-if="activeCategoryUrl" class="api-url">API: {{ activeCategoryUrl }}</div>
         </div>
 
+        <div class="lap-panel">
+          <h2>Круги и отсечки</h2>
+          <div class="lap-panel__grid">
+            <div>
+              <div class="lap-panel__label">Круг (N/M)</div>
+              <div class="lap-panel__value">{{ lapState.lapLabel || '—' }}</div>
+            </div>
+            <div>
+              <div class="lap-panel__label">Всего кругов (M)</div>
+              <div class="lap-panel__value lap-panel__total-laps">
+                <input
+                  type="number"
+                  min="1"
+                  class="form-control form-control-sm d-inline-block w-auto"
+                  v-model.number="totalLaps"
+                  @change="saveTotalLaps"
+                />
+              </div>
+            </div>
+            <div>
+              <div class="lap-panel__label">Лидер</div>
+              <div class="lap-panel__value">{{ lapState.leaderName || '—' }}</div>
+            </div>
+            <div>
+              <div class="lap-panel__label">№ / время отсечки</div>
+              <div class="lap-panel__value">
+                <span v-if="lapState.leaderNumber">{{ formatNum(lapState.leaderNumber) }}</span>
+                <span v-if="lapState.splitTime"> · {{ lapState.splitTime }}</span>
+                <span v-if="!lapState.leaderNumber && !lapState.splitTime">—</span>
+              </div>
+            </div>
+          </div>
+          <p class="lap-panel__hint">Отсечки — при прохождении круга любым участником. N/M меняется, когда лидер завершает круг.</p>
+          <div class="lap-panel__actions">
+            <button type="button" class="btn btn-sm btn-info" @click="simulateLeaderLap" :disabled="dataFrozen">
+              +1 круг (тест)
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @click="resetLapCounter">
+              Сбросить счётчик
+            </button>
+            <a :href="lapsUrl" class="btn btn-sm btn-outline-light" target="_blank">Открыть /laps</a>
+          </div>
+        </div>
+
+        <div class="results-table-wrap">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th class="col-place">Место</th>
+                <th>Участник</th>
+                <th class="col-num">Номер</th>
+                <th>Возраст</th>
+                <th>Клуб</th>
+                <th class="col-result">Результат</th>
+                <th class="col-gap">До лидера</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, ri) in flatList" :key="ri">
+                <td class="col-place">{{ row.место }}</td>
+                <td>{{ row.участник }}</td>
+                <td class="col-num">{{ formatNum(row.номер) }}</td>
+                <td>{{ row.возраст }}</td>
+                <td>{{ row.клуб }}</td>
+                <td class="col-result">{{ row.результат }}</td>
+                <td class="col-gap">{{ row.доЛидера }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="vmix-pages-title">Страницы для vMix (клик — отправить в эфир)</div>
         <ul class="list-group">
           <div class="list-item-container" v-for="(item, index) in sheet1" :key="index">
             <li class="list-group-item" @click="clickItem(item, index)" :id="index">
               <div class="number" style="width: 100%">Страница {{ index + 1 }}</div>
-              <div v-for="(athlet, ai) in item" class="athlete-row text" :key="ai">
-                <strong>{{ athlet.место }}</strong>
-                {{ athlet.результат }}
-                {{ athlet.участник }}
-                #{{ athlet.номер }}
-                {{ athlet.возраст }}
-                {{ athlet.клуб }}
-                <span v-if="athlet.доЛидера">({{ athlet.доЛидера }})</span>
+              <div v-for="(athlet, ai) in item" class="athlete-row" :key="ai">
+                <span><strong>{{ athlet.место }}</strong></span>
+                <span>{{ athlet.участник }}</span>
+                <span>{{ formatNum(athlet.номер) }}</span>
+                <span>{{ athlet.возраст }}</span>
+                <span>{{ athlet.клуб }}</span>
+                <span>{{ athlet.результат }}</span>
+                <span class="gap">{{ athlet.доЛидера }}</span>
               </div>
               <div class="countdown" :id="index"></div>
               <div class="progressbar" :id="index"></div>
@@ -63,7 +170,6 @@
         </ul>
       </div>
 
-      <div style="height: 300px;"></div>
       <div class="footer">
         <button type="button" class="btn btn-primary" @click='vmixCommand("winner1")'>WINNER 1</button>
         <button type="button" class="btn btn-primary" @click='vmixCommand("winner2")'>WINNER 2</button>
