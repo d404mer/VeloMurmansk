@@ -18,7 +18,7 @@
       "winner2": "leader2",
       "winner3": "leader3",
       "winners": "winners",
-      "lapCounter": "lapcounter",
+      "lapCounter": "time",
       "resultManual": "results{page}",
       "startlistManual": "startlist{page}"
     },
@@ -27,20 +27,34 @@
       "winners": "liders4"
     },
     "indexedFields": {
-      "num": "num{n}.Text",
-      "name": "name{n}.Text",
+      "num": "num {n}.Text",
+      "name": "name {n}.Text",
       "age": "age{n}.Text",
-      "city": "city{n}.Text",
+      "city": "city {n}.Text",
       "place": "place{n}.Text",
       "result": "result{n}.Text",
       "gap": "gap{n}.Text"
     },
-    "startlistFields": ["num", "name", "age", "city"],
-    "resultsFields": ["place", "num", "name", "age", "city", "result", "gap"],
+    "startlistFields": [
+      "num",
+      "name",
+      "age",
+      "city"
+    ],
+    "resultsFields": [
+      "place",
+      "num",
+      "name",
+      "age",
+      "city",
+      "result",
+      "gap"
+    ],
     "singleFields": {
       "class": "class.Text",
       "class1": "class1.Text",
       "name1": "name1.Text",
+      "leaderName": "name1.Text",
       "lap": "lap.Text"
     },
     "startlistByCategory": {
@@ -51,7 +65,7 @@
     }
   },
   "activeEventId": "xcochamp2025",
-  "activeCategoryId": "junior_women",
+  "activeCategoryId": "women",
   "events": [
     {
       "id": "xcochamp2025",
@@ -60,29 +74,25 @@
       "categories": [
         {
           "id": "women",
-          "name": "Женщины",
-          "totalLaps": 85,
+          "name": "Текст категория • Женщины",
           "stageGuid": "e85d8953-1ec8-474f-8cab-8685b9ca4a54",
           "categoryGuid": "2cec894b-ff61-4c77-96ab-c16ffaa99a1c"
         },
         {
           "id": "men",
-          "name": "Мужчины",
-          "totalLaps": 5,
+          "name": "Текст категория • Мужчины",
           "stageGuid": "ddbe6a4f-61e1-4d97-99a2-136c23155690",
           "categoryGuid": "717944ed-c7d8-4316-93b0-0e82ea21656c"
         },
         {
           "id": "junior_women",
-          "name": "Юниорки 17-18",
-          "totalLaps": 4,
+          "name": "Текст категория • Юниорки 17-18",
           "stageGuid": "702a955c-f357-4b59-8ccc-64e439dd2531",
           "categoryGuid": "3b08ae1a-d492-4dfe-bdd1-be279911917e"
         },
         {
           "id": "junior_men",
-          "name": "Юниоры 17-18",
-          "totalLaps": 6,
+          "name": "Текст категория • Юниоры 17-18",
           "stageGuid": "2c46bcb6-5aa3-42ef-8d4c-f694d9cefca8",
           "categoryGuid": "a5ebfa03-b14a-4eb1-8055-c91c27ee04a6"
         }
