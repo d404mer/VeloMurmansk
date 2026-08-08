@@ -7,7 +7,7 @@
   },
   "pollIntervalMs": 5000,
   "vmix": {
-    "host": "localhost",
+    "host": "192.168.8.69",
     "autoUpdate": true,
     "pageSize": 10,
     "maxPages": 6,
@@ -17,7 +17,7 @@
       "winner1": "leader1",
       "winner2": "leader2",
       "winner3": "leader3",
-      "winners": "winners",
+      "winners": "winners_flowers",
       "lapCounter": "time",
       "resultManual": "results{page}",
       "startlistManual": "startlist{page}"
@@ -72,7 +72,7 @@
     }
   },
   "activeEventId": "xcochamp2025",
-  "activeCategoryId": "women",
+  "activeCategoryId": "junior_men",
   "events": [
     {
       "id": "xcochamp2025",
@@ -82,7 +82,7 @@
         {
           "id": "women",
           "name": "Текст категория • Женщины",
-          "totalLaps": 85,
+          "totalLaps": 41,
           "stageGuid": "e85d8953-1ec8-474f-8cab-8685b9ca4a54",
           "categoryGuid": "2cec894b-ff61-4c77-96ab-c16ffaa99a1c"
         },
