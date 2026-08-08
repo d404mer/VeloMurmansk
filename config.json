@@ -53,10 +53,17 @@
     "singleFields": {
       "class": "class.Text",
       "class1": "class1.Text",
-      "name1": "name 1.Text",
-      "leaderName": "name 1.Text",
+      "name1": "name1.Text",
+      "name2": "name2.Text",
+      "name3": "name3.Text",
+      "leaderName": "name1.Text",
       "lap": "lap.Text"
     },
+    "winnerNameFields": [
+      "name1",
+      "name2",
+      "name3"
+    ],
     "startlistByCategory": {
       "women": "startlist{page}",
       "men": "startlist{page}",
