@@ -100,14 +100,16 @@ function initVmix() {
 function buildCategoryStartlists(event, categoryResults) {
   if (!event) return [];
   const activeId = config.activeCategoryId;
-  const entries = event.categories.map((category) => ({
-    categoryId: category.id,
-    categoryName: category.name,
-    startList: categoryResults.get(category.id)?.startList ?? [],
-  }));
-  const inactive = entries.filter((entry) => entry.categoryId !== activeId);
-  const active = entries.filter((entry) => entry.categoryId === activeId);
-  return [...inactive, ...active];
+  const activeCategory = event.categories.find((category) => category.id === activeId);
+  if (!activeCategory) return [];
+
+  return [
+    {
+      categoryId: activeCategory.id,
+      categoryName: activeCategory.name,
+      startList: categoryResults.get(activeCategory.id)?.startList ?? [],
+    },
+  ];
 }
 
 function buildVmixMeta(event, category) {
@@ -398,6 +400,7 @@ app.post('/api/category', async (req, res) => {
   if (categoryId) {
     config.activeCategoryId = categoryId;
     lapTracker.initCategory(categoryId);
+    vmixPusher.resetCache();
     const cat = getActiveCategory(getActiveEvent());
     if (cat) lapTracker.setTotalLaps(categoryId, getCategoryTotalLaps(cat));
   }

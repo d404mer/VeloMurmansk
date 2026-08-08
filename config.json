@@ -7,7 +7,7 @@
   },
   "pollIntervalMs": 5000,
   "vmix": {
-    "host": "192.168.8.69",
+    "host": "localhost",
     "autoUpdate": true,
     "pageSize": 10,
     "maxPages": 6,
@@ -31,7 +31,7 @@
       "name": "name {n}.Text",
       "age": "age{n}.Text",
       "city": "city {n}.Text",
-      "place": "place{n}.Text",
+      "place": "place {n}.Text",
       "result": "result{n}.Text",
       "gap": "gap{n}.Text"
     },
@@ -54,16 +54,25 @@
       "class": "class.Text",
       "class1": "class1.Text",
       "name1": "name1.Text",
-      "name2": "name2.Text",
-      "name3": "name3.Text",
-      "leaderName": "name1.Text",
+      "name 1": "name 1.Text",
+      "name 2": "name 2.Text",
+      "name 3": "name 3.Text",
+      "leaderName": "name 1.Text",
       "lap": "lap.Text"
     },
     "winnerNameFields": [
-      "name1",
-      "name2",
-      "name3"
+      "name 1",
+      "name 2",
+      "name 3"
     ],
+    "leaderNameFields": [
+      "name 1",
+      "name 2",
+      "name 3"
+    ],
+    "indexedSpacedFrom": {
+      "place": 6
+    },
     "startlistByCategory": {
       "women": "startlist{page}",
       "men": "startlist{page}",
@@ -72,7 +81,7 @@
     }
   },
   "activeEventId": "xcochamp2025",
-  "activeCategoryId": "junior_men",
+  "activeCategoryId": "men",
   "events": [
     {
       "id": "xcochamp2025",
