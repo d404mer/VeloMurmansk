@@ -35,13 +35,11 @@
       "result": "result {row}.Text",
       "gap": "gap {row}.Text"
     },
-    "lapCounter": {
-      "template": "lapcounter",
-      "fields": {
-        "lap": "lap.Text",
-        "leader": "leader.Text",
-        "time": "time.Text"
-      }
+    "startlistByCategory": {
+      "women": "startlist_w{page}",
+      "men": "startlist_m{page}",
+      "junior_women": "startlist_jw{page}",
+      "junior_men": "startlist_jm{page}"
     }
   },
   "activeEventId": "xcochamp2025",

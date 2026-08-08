@@ -30,6 +30,7 @@ let isFetching = false;
 const lapTracker = createLapTracker();
 const sseClients = [];
 let replayTimer = null;
+let lastCategoryResults = new Map();
 
 const vmixPusher = createVmixPusher(() => ({
   connected: vmixConnected,
@@ -96,8 +97,18 @@ function initVmix() {
   });
 }
 
-function pushResultsToVmix(data) {
-  vmixPusher.pushAll(config, data);
+function buildCategoryStartlists(event, categoryResults) {
+  if (!event) return [];
+  return event.categories.map((category) => ({
+    categoryId: category.id,
+    startList: categoryResults.get(category.id)?.startList ?? [],
+  }));
+}
+
+function pushResultsToVmix(data, categoryResults) {
+  const event = getActiveEvent();
+  const startlists = buildCategoryStartlists(event, categoryResults || lastCategoryResults);
+  vmixPusher.pushAll(config, data, startlists);
 }
 
 async function fetchCategoryRaw(event, category) {
@@ -182,9 +193,6 @@ function handleLapPollResult(categoryId, result) {
   if (result.plaqueEvents?.length) {
     broadcastLapEvents(result.plaqueEvents);
   }
-  if (categoryId === config.activeCategoryId && result.counterUpdated) {
-    vmixPusher.pushLapCounter(config, lapTracker.getLapState(categoryId));
-  }
 }
 
 async function saveExcel(event, categoryResults) {
@@ -259,7 +267,8 @@ async function refreshData() {
         frozenSnapshot.lastExport = raceData.lastExport;
       }
 
-      pushResultsToVmix(getDisplayData());
+      lastCategoryResults = categoryResults;
+      pushResultsToVmix(getDisplayData(), categoryResults);
 
       if (!dataFrozen) {
         for (const category of event.categories) {
@@ -487,10 +496,6 @@ app.post('/api/laps/total-laps', (req, res) => {
   category.totalLaps = totalLaps;
   saveConfig();
   lapTracker.setTotalLaps(categoryId, totalLaps);
-
-  if (categoryId === config.activeCategoryId) {
-    vmixPusher.pushLapCounter(config, lapTracker.getLapState(categoryId));
-  }
 
   res.json({
     ok: true,
