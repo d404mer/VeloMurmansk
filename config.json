@@ -53,8 +53,8 @@
     "singleFields": {
       "class": "class.Text",
       "class1": "class1.Text",
-      "name1": "name1.Text",
-      "leaderName": "name1.Text",
+      "name1": "name 1.Text",
+      "leaderName": "name 1.Text",
       "lap": "lap.Text"
     },
     "startlistByCategory": {
@@ -65,7 +65,7 @@
     }
   },
   "activeEventId": "xcochamp2025",
-  "activeCategoryId": "women",
+  "activeCategoryId": "junior_women",
   "events": [
     {
       "id": "xcochamp2025",
@@ -75,24 +75,28 @@
         {
           "id": "women",
           "name": "Текст категория • Женщины",
+          "totalLaps": 85,
           "stageGuid": "e85d8953-1ec8-474f-8cab-8685b9ca4a54",
           "categoryGuid": "2cec894b-ff61-4c77-96ab-c16ffaa99a1c"
         },
         {
           "id": "men",
           "name": "Текст категория • Мужчины",
+          "totalLaps": 4,
           "stageGuid": "ddbe6a4f-61e1-4d97-99a2-136c23155690",
           "categoryGuid": "717944ed-c7d8-4316-93b0-0e82ea21656c"
         },
         {
           "id": "junior_women",
           "name": "Текст категория • Юниорки 17-18",
+          "totalLaps": 85,
           "stageGuid": "702a955c-f357-4b59-8ccc-64e439dd2531",
           "categoryGuid": "3b08ae1a-d492-4dfe-bdd1-be279911917e"
         },
         {
           "id": "junior_men",
           "name": "Текст категория • Юниоры 17-18",
+          "totalLaps": 85,
           "stageGuid": "2c46bcb6-5aa3-42ef-8d4c-f694d9cefca8",
           "categoryGuid": "a5ebfa03-b14a-4eb1-8055-c91c27ee04a6"
         }
