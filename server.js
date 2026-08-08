@@ -381,6 +381,7 @@ app.post('/api/freeze', (req, res) => {
     pushResultsToVmix(frozenSnapshot);
   } else {
     frozenSnapshot = null;
+    vmixPusher.resetCache();
     pushResultsToVmix(raceData);
   }
   res.json({
