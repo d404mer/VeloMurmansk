@@ -99,16 +99,34 @@ function initVmix() {
 
 function buildCategoryStartlists(event, categoryResults) {
   if (!event) return [];
-  return event.categories.map((category) => ({
+  const activeId = config.activeCategoryId;
+  const entries = event.categories.map((category) => ({
     categoryId: category.id,
+    categoryName: category.name,
     startList: categoryResults.get(category.id)?.startList ?? [],
   }));
+  const inactive = entries.filter((entry) => entry.categoryId !== activeId);
+  const active = entries.filter((entry) => entry.categoryId === activeId);
+  return [...inactive, ...active];
+}
+
+function buildVmixMeta(event, category) {
+  return {
+    eventName: event?.name ?? '',
+    categoryName: category?.name ?? '',
+    lapState: lapTracker.getLapState(config.activeCategoryId),
+  };
 }
 
 function pushResultsToVmix(data, categoryResults) {
   const event = getActiveEvent();
+  const activeCategory = getActiveCategory(event);
   const startlists = buildCategoryStartlists(event, categoryResults || lastCategoryResults);
-  vmixPusher.pushAll(config, data, startlists);
+  vmixPusher.pushAll(
+    config,
+    { ...data, meta: buildVmixMeta(event, activeCategory) },
+    startlists
+  );
 }
 
 async function fetchCategoryRaw(event, category) {
@@ -410,10 +428,12 @@ app.post('/updateData', async (req, res) => {
 });
 
 app.post('/row1', (req, res) => {
-  const startIndex = req.body.index;
+  const startIndex = Number(req.body.index) || 0;
+  const event = getActiveEvent();
+  const meta = buildVmixMeta(event, getActiveCategory(event));
+  vmixPusher.pushManualPage(config, req.body.item || [], startIndex, 'result', meta);
+  vmixPusher.pushManualPage(config, req.body.item || [], startIndex, 'startlist', meta);
   res.status(200).send(startIndex.toString());
-  vmixPusher.pushManualPage(config, req.body.item || [], startIndex, 'result');
-  vmixPusher.pushManualPage(config, req.body.item || [], startIndex, 'startlist');
 });
 
 app.get('/laps', (req, res) => {
@@ -561,7 +581,13 @@ app.post('/api/laps/replay', (req, res) => {
 
 app.post('/vmixCommand', (req, res) => {
   const command = req.body.data;
-  vmixPusher.pushWinnerOverlay(config, command, getDisplayData());
+  const event = getActiveEvent();
+  vmixPusher.pushWinnerOverlay(
+    config,
+    command,
+    getDisplayData(),
+    buildVmixMeta(event, getActiveCategory(event))
+  );
   res.send('ok');
 });
 

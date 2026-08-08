@@ -10,36 +10,44 @@
     "host": "localhost",
     "autoUpdate": true,
     "pageSize": 10,
-    "maxPages": 5,
+    "maxPages": 6,
     "templates": {
-      "resultsPage": "res{page}",
+      "resultsPage": "results{page}",
       "startlistPage": "startlist{page}",
       "winner1": "leader1",
       "winner2": "leader2",
       "winner3": "leader3",
       "winners": "winners",
-      "resultManual": "result",
-      "startlistManual": "startlist"
+      "lapCounter": "lapcounter",
+      "resultManual": "results{page}",
+      "startlistManual": "startlist{page}"
     },
     "legacy": {
       "winner1": "lider",
       "winners": "liders4"
     },
-    "fields": {
-      "place": "place {row}.Text",
-      "num": "num {row}.Text",
-      "name": "name {row}.Text",
-      "city": "city {row}.Text",
-      "club": "club {row}.Text",
-      "age": "age {row}.Text",
-      "result": "result {row}.Text",
-      "gap": "gap {row}.Text"
+    "indexedFields": {
+      "num": "num{n}.Text",
+      "name": "name{n}.Text",
+      "age": "age{n}.Text",
+      "city": "city{n}.Text",
+      "place": "place{n}.Text",
+      "result": "result{n}.Text",
+      "gap": "gap{n}.Text"
+    },
+    "startlistFields": ["num", "name", "age", "city"],
+    "resultsFields": ["place", "num", "name", "age", "city", "result", "gap"],
+    "singleFields": {
+      "class": "class.Text",
+      "class1": "class1.Text",
+      "name1": "name1.Text",
+      "lap": "lap.Text"
     },
     "startlistByCategory": {
-      "women": "startlist_w{page}",
-      "men": "startlist_m{page}",
-      "junior_women": "startlist_jw{page}",
-      "junior_men": "startlist_jm{page}"
+      "women": "startlist{page}",
+      "men": "startlist{page}",
+      "junior_women": "startlist{page}",
+      "junior_men": "startlist{page}"
     }
   },
   "activeEventId": "xcochamp2025",
