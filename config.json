@@ -7,7 +7,7 @@
   },
   "pollIntervalMs": 5000,
   "vmix": {
-    "host": "192.168.8.69",
+    "host": "localhost",
     "autoUpdate": true,
     "pageSize": 10,
     "maxPages": 6,
@@ -29,11 +29,11 @@
     "indexedFields": {
       "num": "num {n}.Text",
       "name": "name {n}.Text",
-      "age": "age{n}.Text",
+      "age": "age {n}.Text",
       "city": "city {n}.Text",
       "place": "place {n}.Text",
-      "result": "result{n}.Text",
-      "gap": "gap{n}.Text"
+      "result": "result {n}.Text",
+      "gap": "gap {n}.Text"
     },
     "startlistFields": [
       "num",
@@ -70,9 +70,7 @@
       "name 2",
       "name 3"
     ],
-    "indexedSpacedFrom": {
-      "place": 6
-    },
+    "indexedSpacedFrom": {},
     "startlistByCategory": {
       "women": "startlist{page}",
       "men": "startlist{page}",
@@ -81,7 +79,7 @@
     }
   },
   "activeEventId": "xcochamp2025",
-  "activeCategoryId": "men",
+  "activeCategoryId": "women",
   "events": [
     {
       "id": "xcochamp2025",
