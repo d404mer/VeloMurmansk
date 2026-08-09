@@ -7,7 +7,7 @@
   },
   "pollIntervalMs": 5000,
   "vmix": {
-    "host": "localhost",
+    "host": "192.168.8.69",
     "autoUpdate": true,
     "pageSize": 10,
     "maxPages": 6,
@@ -81,38 +81,35 @@
     }
   },
   "activeEventId": "xcochamp2025",
-  "activeCategoryId": "men",
+  "activeCategoryId": "women",
   "events": [
     {
       "id": "xcochamp2025",
-      "name": "Кубок России 2026",
+      "name": "ᅟ",
       "raceGuid": "358f8164-8a38-407d-828d-162892e6c5a8",
       "categories": [
         {
           "id": "women",
-          "name": "Кубок России • Женщины",
-          "totalLaps": 6,
+          "name": "Кубок России Финал • Короткий круг • Женщины",
           "stageGuid": "2740b6d8-73f9-4836-a739-b57371cdb591",
-          "categoryGuid": "f786353b-3749-4157-a397-e88585168303"
+          "categoryGuid": "f786353b-3749-4157-a397-e88585168303",
+          "totalLaps": 5
         },
         {
           "id": "men",
-          "name": "Кубок России • Мужчины",
-          "totalLaps": 3,
+          "name": "Кубок России Финал • Короткий круг • Мужчины",
           "stageGuid": "d8e38b29-6d90-4738-90f5-b18e6520981a",
           "categoryGuid": "fcbdb5d8-0aa1-4b76-a51f-56dc7dc369f8"
         },
         {
-          "id": "women1",
-          "name": "Кубок России • Женщины1",
-          "totalLaps": 6,
+          "id": "junior_women",
+          "name": "ааа",
           "stageGuid": "2740b6d8-73f9-4836-a739-b57371cdb591",
           "categoryGuid": "f786353b-3749-4157-a397-e88585168303"
         },
         {
-          "id": "women2",
-          "name": "Кубок России • Женщины2",
-          "totalLaps": 6,
+          "id": "junior_men",
+          "name": "ааа",
           "stageGuid": "2740b6d8-73f9-4836-a739-b57371cdb591",
           "categoryGuid": "f786353b-3749-4157-a397-e88585168303"
         }
