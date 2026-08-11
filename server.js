@@ -160,6 +160,10 @@ function getLapsMode() {
   return config.laps?.mode === 'all' ? 'all' : 'leader';
 }
 
+function isExcelExportEnabled() {
+  return config.excelExportEnabled !== false;
+}
+
 function broadcastLapEvent(event) {
   if (dataFrozen) return;
   const payload = `data: ${JSON.stringify(event)}\n\n`;
@@ -330,7 +334,9 @@ async function refreshData() {
       raceData.lastError = `Failed to load ${activeCategory.name}`;
     }
 
-    await saveExcel(event, categoryResults);
+    if (isExcelExportEnabled()) {
+      await saveExcel(event, categoryResults);
+    }
   } catch (err) {
     console.error(err.message || err);
     raceData.lastError = err.message || String(err);
@@ -395,6 +401,7 @@ app.get('/api/config', (req, res) => {
     lapState: lapTracker.getLapState(config.activeCategoryId),
     totalLaps: getCategoryTotalLaps(getActiveCategory(event)),
     lapsMode: getLapsMode(),
+    excelExportEnabled: isExcelExportEnabled(),
   });
 });
 
@@ -447,6 +454,17 @@ app.post('/export', async (req, res) => {
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message || String(err) });
   }
+});
+
+app.post('/api/excel-export', (req, res) => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
+    return;
+  }
+  config.excelExportEnabled = enabled;
+  saveConfig();
+  res.json({ ok: true, excelExportEnabled: isExcelExportEnabled() });
 });
 
 app.post('/updateData', async (req, res) => {

@@ -6,6 +6,7 @@
     "referer": "https://racetime.online/"
   },
   "pollIntervalMs": 5000,
+  "excelExportEnabled": false,
   "laps": {
     "mode": "all"
   },

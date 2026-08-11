@@ -9,8 +9,84 @@
   <style>
     .meta-bar { color: #ccc; margin-bottom: 12px; font-size: 14px; }
     .meta-bar .api-url { word-break: break-all; font-size: 12px; opacity: 0.85; }
-    .controls { margin-bottom: 16px; }
-    .controls select, .controls button { margin-right: 8px; margin-bottom: 8px; }
+    .controls { margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-start; }
+    .controls__group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .controls__label {
+      width: 100%;
+      margin: 0 0 2px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #adb5bd;
+    }
+    .operator-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .operator-tabs .btn { min-width: 120px; }
+    .operator-tabs .btn.active {
+      background-color: #495159;
+      border-color: #adb5bd;
+      color: #fff;
+    }
+    .operator-tabs__divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #adb5bd;
+      font-size: 12px;
+      padding: 0 4px;
+      white-space: nowrap;
+    }
+    .operator-tabs__divider::before {
+      content: '';
+      display: block;
+      width: 1px;
+      height: 24px;
+      background: #5a6268;
+    }
+    .config-tab-banner {
+      background: rgba(255, 209, 102, 0.12);
+      border: 1px solid rgba(255, 209, 102, 0.35);
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      color: #ffd166;
+      font-size: 13px;
+    }
+    .vmix-broadcast-panel {
+      background: #3d4650;
+      border: 1px solid #5a6268;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+      color: #eee;
+    }
+    .vmix-broadcast-panel h2 { font-size: 16px; margin: 0 0 12px; color: #fff; }
+    .vmix-broadcast-row {
+      display: grid;
+      grid-template-columns: minmax(180px, 240px) 1fr;
+      gap: 10px 16px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .vmix-broadcast-row label { margin: 0; font-size: 13px; color: #adb5bd; }
+    .vmix-broadcast-hint { font-size: 12px; color: #adb5bd; margin: 8px 0 0; }
+    li.list-group-item.list-group-item--sent {
+      background-color: #2d6a4f !important;
+      border-color: #40916c;
+      position: relative;
+    }
+    li.list-group-item.list-group-item--sent::after {
+      content: '✓';
+      position: absolute;
+      right: 12px;
+      top: 8px;
+      color: #95d5b2;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    @media (max-width: 600px) {
+      .vmix-broadcast-row { grid-template-columns: 1fr; }
+    }
     .results-table-wrap { overflow-x: auto; margin-bottom: 24px; }
     .results-table { width: 100%; font-size: 14px; color: #eee; border-collapse: collapse; }
     .results-table th,
@@ -42,13 +118,6 @@
     .lap-panel__hint { margin: 0 0 10px; font-size: 12px; color: #adb5bd; }
     .lap-panel__total-laps input { max-width: 72px; }
     .page-wrap { padding-bottom: 24px; }
-    .operator-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-    .operator-tabs .btn { min-width: 120px; }
-    .operator-tabs .btn.active {
-      background-color: #495159;
-      border-color: #adb5bd;
-      color: #fff;
-    }
     .winners-panel {
       background: #3d4650;
       border: 1px solid #5a6268;
@@ -257,18 +326,23 @@
         <h1>VELO Limetime</h1>
 
         <div class="controls">
-          <select class="form-select d-inline-block w-auto" v-model="activeCategoryId" @change="changeCategory">
-            <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-          </select>
-          <button type="button" class="btn btn-secondary" @click="refreshNow">Обновить</button>
-          <button type="button" class="btn btn-success" @click="exportExcel">Сохранить в Excel</button>
-          <a href="/config" class="btn btn-outline-light">Настройки</a>
-          <a href="/laps" class="btn btn-outline-light" target="_blank">Плашки кругов</a>
-          <a href="/laps?test=1" class="btn btn-outline-secondary" target="_blank">Тест плашек</a>
-          <button type="button" class="btn btn-warning" @click="toggleFreeze">
-            {{ dataFrozen ? 'Снять заморозку' : 'Заморозить данные' }}
-          </button>
-          <button type="button" class="btn btn-outline-info" @click="openVmixPreview">Превью vMix</button>
+          <div class="controls__group">
+            <div class="controls__label">Живое управление</div>
+            <select class="form-select d-inline-block w-auto" v-model="activeCategoryId" @change="changeCategory">
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+            </select>
+            <button type="button" class="btn btn-secondary" @click="refreshNow">Обновить</button>
+            <button type="button" class="btn btn-warning" @click="toggleFreeze">
+              {{ dataFrozen ? 'Снять заморозку' : 'Заморозить данные' }}
+            </button>
+          </div>
+          <div class="controls__group">
+            <div class="controls__label">Ссылки и инструменты</div>
+            <a href="/config" class="btn btn-sm btn-outline-light" title="Настройки события и категорий">Настройки</a>
+            <a href="/laps" class="btn btn-sm btn-outline-light" target="_blank" title="Browser Source плашек отсечек">Плашки кругов</a>
+            <a href="/laps?test=1" class="btn btn-sm btn-outline-secondary" target="_blank" title="Тестовая панель плашек">Тест плашек</a>
+            <button type="button" class="btn btn-sm btn-outline-info" @click="openVmixPreview" title="Превью полей vMix без отправки">Превью vMix</button>
+          </div>
         </div>
 
         <div class="meta-bar">
@@ -287,26 +361,37 @@
             type="button"
             class="btn btn-outline-light"
             :class="{ active: activeTab === 'results' }"
-            @click="activeTab = 'results'"
+            @click="setActiveTab('results')"
           >Результаты</button>
           <button
             type="button"
             class="btn btn-outline-light"
             :class="{ active: activeTab === 'winners' }"
-            @click="activeTab = 'winners'"
+            @click="setActiveTab('winners')"
           >Победители</button>
+          <div class="operator-tabs__divider">Настройка vMix</div>
           <button
             type="button"
-            class="btn btn-outline-light"
+            class="btn btn-sm btn-outline-secondary"
+            :class="{ active: activeTab === 'vmix' }"
+            @click="setActiveTab('vmix')"
+          >vMix</button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
             :class="{ active: activeTab === 'mapping' }"
             @click="openFieldMappingTab"
           >Маппинг полей</button>
           <button
             type="button"
-            class="btn btn-outline-light"
+            class="btn btn-sm btn-outline-secondary"
             :class="{ active: activeTab === 'templates' }"
             @click="openVmixTemplatesTab"
           >vMix шаблоны</button>
+        </div>
+
+        <div v-if="isConfigTab" class="config-tab-banner">
+          Изменения применяются сразу к активной трансляции
         </div>
 
         <div v-show="activeTab === 'results'">
@@ -395,7 +480,12 @@
         <div class="vmix-pages-title">Страницы для vMix (клик — отправить в эфир)</div>
         <ul class="list-group">
           <div class="list-item-container" v-for="(item, index) in sheet1" :key="index">
-            <li class="list-group-item" @click="clickItem(item, index)" :id="index">
+            <li
+              class="list-group-item"
+              :class="{ 'list-group-item--sent': sentPageIndex === index }"
+              @click="clickItem(item, index)"
+              :id="index"
+            >
               <div class="number" style="width: 100%">Страница {{ index + 1 }}</div>
               <div v-for="(athlet, ai) in item" class="athlete-row" :key="ai">
                 <span><strong>{{ athlet.место }}</strong></span>
@@ -421,6 +511,30 @@
             <button type="button" class="btn btn-primary" @click='vmixCommand("winner2")'>WINNER 2</button>
             <button type="button" class="btn btn-primary" @click='vmixCommand("winner3")'>WINNER 3</button>
             <button type="button" class="btn btn-primary" @click='vmixCommand("winners")'>WINNERS</button>
+          </div>
+        </div>
+
+        <div v-show="activeTab === 'vmix'" class="vmix-broadcast-panel">
+          <h2>Настройки вещания</h2>
+          <div class="vmix-broadcast-row">
+            <label for="excel-export-toggle">Автосохранение в Excel</label>
+            <div class="form-check form-switch">
+              <input
+                id="excel-export-toggle"
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+                :checked="excelExportEnabled"
+                @change="saveExcelExportEnabled($event.target.checked)"
+              />
+            </div>
+          </div>
+          <div class="vmix-broadcast-row">
+            <label>Ручной экспорт</label>
+            <div>
+              <button type="button" class="btn btn-sm btn-success" @click="exportExcel">Сохранить в Excel</button>
+              <p v-if="lastExport" class="vmix-broadcast-hint mb-0">Последний файл: {{ lastExport.filename }}</p>
+            </div>
           </div>
         </div>
 

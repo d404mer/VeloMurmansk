@@ -1,4 +1,7 @@
 
+const OPERATOR_TAB_KEY = 'velo.operatorActiveTab';
+const VALID_OPERATOR_TABS = new Set(['results', 'winners', 'vmix', 'mapping', 'templates']);
+
 Vue.createApp({
   data() {
     return {
@@ -18,6 +21,7 @@ Vue.createApp({
       resultCount: 0,
       totalLaps: 8,
       lapsMode: 'leader',
+      excelExportEnabled: true,
       lapState: {
         completedLap: 0,
         currentLap: 1,
@@ -29,6 +33,8 @@ Vue.createApp({
         updatedAt: null,
       },
       activeTab: 'results',
+      sentPageIndex: null,
+      sentPageTimer: null,
       vmixPreviewOpen: false,
       vmixPreviewLoading: false,
       vmixPreviewError: '',
@@ -84,18 +90,40 @@ Vue.createApp({
     fieldMappingActivePlaque() {
       return this.fieldMappingPlaques.find((plaque) => plaque.id === this.fieldMappingSelectedPlaqueId) || null;
     },
+    isConfigTab() {
+      return this.activeTab === 'mapping' || this.activeTab === 'templates';
+    },
   },
   methods: {
+    setActiveTab(tab) {
+      if (!VALID_OPERATOR_TABS.has(tab)) return;
+      this.activeTab = tab;
+      localStorage.setItem(OPERATOR_TAB_KEY, tab);
+    },
+
     formatNum(number) {
       if (number == null || number === '') return '';
       const value = String(number);
       return value.startsWith('№') ? value : `№${value}`;
     },
 
+    markPageSent(index) {
+      if (this.sentPageTimer) {
+        clearTimeout(this.sentPageTimer);
+      }
+      this.sentPageIndex = index;
+      this.sentPageTimer = setTimeout(() => {
+        this.sentPageIndex = null;
+        this.sentPageTimer = null;
+      }, 1500);
+    },
+
     clickItem(item, index) {
       const data = { item, index };
       this.selectedItem = index;
-      axios.post('/row1', data).then(() => markSelectedItem());
+      axios.post('/row1', data).then(() => {
+        this.markPageSent(index);
+      });
     },
 
     vmixCommand(com) {
@@ -132,7 +160,7 @@ Vue.createApp({
     },
 
     openFieldMappingTab() {
-      this.activeTab = 'mapping';
+      this.setActiveTab('mapping');
       this.loadFieldMapping();
     },
 
@@ -183,7 +211,7 @@ Vue.createApp({
     },
 
     openVmixTemplatesTab() {
-      this.activeTab = 'templates';
+      this.setActiveTab('templates');
       this.loadVmixTemplates();
     },
 
@@ -277,6 +305,11 @@ Vue.createApp({
     },
 
     toggleFreeze() {
+      const message = this.dataFrozen
+        ? 'Возобновит отправку данных в vMix и плашки. Продолжить?'
+        : 'Остановит обновление vMix и плашек отсечек. Продолжить?';
+      if (!window.confirm(message)) return;
+
       axios
         .post('/api/freeze', { frozen: !this.dataFrozen })
         .then(() => this.loadState());
@@ -303,6 +336,17 @@ Vue.createApp({
       });
     },
 
+    saveExcelExportEnabled(enabled) {
+      const previous = this.excelExportEnabled;
+      this.excelExportEnabled = !!enabled;
+      return axios
+        .post('/api/excel-export', { enabled: this.excelExportEnabled })
+        .catch((err) => {
+          this.excelExportEnabled = previous;
+          this.lastError = err.response?.data?.error || err.message || 'Ошибка сохранения настройки Excel';
+        });
+    },
+
     simulateLeaderLap() {
       axios
         .post('/api/laps/simulate-leader', { categoryId: this.activeCategoryId })
@@ -314,6 +358,14 @@ Vue.createApp({
     },
 
     resetLapCounter() {
+      if (
+        !window.confirm(
+          'Сбросить счётчик кругов? Текущий круг будет обнулён — действие необратимо во время гонки.'
+        )
+      ) {
+        return;
+      }
+
       axios
         .post('/api/laps/reset', { categoryId: this.activeCategoryId })
         .then((res) => {
@@ -370,6 +422,9 @@ Vue.createApp({
         if (res.data.lapsMode) {
           this.lapsMode = res.data.lapsMode;
         }
+        if (res.data.excelExportEnabled != null) {
+          this.excelExportEnabled = !!res.data.excelExportEnabled;
+        }
       });
     },
 
@@ -382,14 +437,17 @@ Vue.createApp({
   },
 
   beforeMount() {
+    const savedTab = localStorage.getItem(OPERATOR_TAB_KEY);
+    if (savedTab && VALID_OPERATOR_TABS.has(savedTab)) {
+      this.activeTab = savedTab;
+    }
+
     this.loadState();
     setInterval(() => {
       this.loadState();
     }, 3000);
   },
 }).mount('#app');
-
-function markSelectedItem() {}
 
 function chunkArray(array, chunkSize) {
   const resultArray = [];
