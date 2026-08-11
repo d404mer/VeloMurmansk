@@ -1,40 +1,55 @@
-# Документация velo-limetime
+# Документация VELO Limetime
 
-Сервис для трансляции велогонок: опрос Limetime API, панель оператора, вывод в vMix и оверлей плашек кругов.
+Сервис для трансляции велогонок: опрос Limetime API, панель оператора, vMix (6×10), Browser Source плашек отсечек, Excel.
 
 ## Содержание
 
 | Документ | Описание |
 |----------|----------|
-| [architecture.md](./architecture.md) | Общая архитектура, потоки данных, конфигурация, фронтенд |
+| [architecture.md](./architecture.md) | Архитектура, потоки данных, vMix, laps, конфиг, фронтенд |
 | [backend-modules.md](./backend-modules.md) | Модули `lib/` — ответственность и алгоритмы |
-| [api-reference.md](./api-reference.md) | HTTP API и форматы запросов/ответов |
+| [api-reference.md](./api-reference.md) | Полный справочник HTTP API |
+| [GUIDE.md](./GUIDE.md) | Руководство оператора (эфир, vMix, troubleshooting) |
 
 ## Быстрый обзор
 
 ```
 Limetime API  ──poll──►  server.js  ──►  transform.js  ──►  raceData
                               │                              │
-                              ├──►  vmixPush.js  ──TCP──►  vMix
                               ├──►  lapTracker.js  ──►  /laps (Browser Source)
-                              └──►  excelExport.js  ──►  exports/data.xlsx
+                              ├──►  vmixPush.js  ──TCP──►  vMix (diff-кэш SetText)
+                              └──►  excelExport.js  ──►  exports/data.xlsx (если excelExportEnabled)
 ```
 
 **Стек:** Node.js, Express, Vue 3 (CDN), axios, node-vmix, ExcelJS.
 
-**Точка входа:** `server.js` — HTTP-сервер на порту `3000` (или `PORT` из окружения).
+**Точка входа:** `server.js` — HTTP на порту `3000` (или `PORT`).
 
-**Конфигурация:** `config.json` — Limetime, vMix, события и категории.
+**Конфигурация:** `config.json` + API/UI без рестарта для vMix, laps, Excel toggle.
 
 ## Страницы
 
 | URL | Назначение |
 |-----|------------|
-| `/` | Панель оператора (таблица, vMix, заморозка) |
-| `/config` | Настройка события и 4 категорий по ссылкам Limetime |
-| `/laps` | Browser Source — плашки при прохождении круга |
+| `/` | Панель оператора (вкладки: Результаты, Победители, vMix, Маппинг, Шаблоны) |
+| `/config` | Настройка события и 4 категорий Limetime |
+| `/laps` | Browser Source — плашки отсечек |
+
+## Ключевые API (кратко)
+
+| Метод | Путь | Назначение |
+|-------|------|------------|
+| GET | `/api/config` | Состояние UI, lapsMode, excelExportEnabled |
+| POST | `/api/freeze` | Заморозка vMix и плашек |
+| POST | `/api/excel-export` | Вкл/выкл автосохранения Excel |
+| POST | `/api/laps/mode` | Режим отсечек `leader` / `all` |
+| GET | `/api/vmix/preview` | Превью полей vMix без TCP |
+| GET/POST | `/api/vmix/templates` | Шаблоны и поля vMix |
+| GET/POST | `/api/vmix/field-mapping` | Маппинг Limetime → vMix |
+
+Полный список — [api-reference.md](./api-reference.md).
 
 ## Связанные материалы
 
-- [README.md](../README.md) — краткая справка по запуску
-- [GUIDE.md](../GUIDE.md) — руководство пользователя
+- [README.md](../README.md) — быстрый старт и эксплуатация
+- [GUIDE.md](./GUIDE.md) — пошаговое руководство

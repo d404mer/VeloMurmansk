@@ -2,15 +2,15 @@
 
 ## Назначение
 
-**velo-limetime** — локальный сервис для судейской/трансляционной бригады на велогонках с системой учёта Limetime (racetime.online). Он:
+**VELO Limetime** — локальный сервис для судейской/трансляционной бригады на велогонках с учётом Limetime (racetime.online). Он:
 
-1. Периодически загружает результаты по API Limetime для всех категорий активного события.
-2. Преобразует сырые данные в таблицы (стартовый лист, промежуточные, финал, лидеры).
-3. Отправляет данные в **vMix** по TCP (текстовые поля шаблонов).
-4. Показывает **плашки отсечки лидера** в Browser Source при прохождении лидером нового круга.
-5. Экспортирует сводный **Excel** (`exports/data.xlsx`) — лист на каждую категорию.
+1. Периодически загружает результаты по API для всех категорий активного события.
+2. Преобразует сырые данные в таблицы (старт, live, финал, лидеры).
+3. Отправляет данные в **vMix** по TCP (`SetText`, `OverlayInput1`) — **6 страниц по 10 строк**.
+4. Показывает **плашки отсечек** в Browser Source `/laps` при прохождении круга.
+5. Экспортирует **Excel** (`exports/data.xlsx`) — при включённом `excelExportEnabled`.
 
-Оператор управляет всем через веб-панель; vMix и оверлей `/laps` работают как потребители данных сервера.
+Оператор управляет через веб-панель; конфиг vMix, laps и Excel можно менять **на лету** через API/UI.
 
 ---
 
@@ -18,26 +18,27 @@
 
 ```
 velo/
-├── server.js              # Точка входа: Express, polling, маршруты, состояние
-├── config.json            # Конфигурация Limetime, vMix, событий
-├── package.json
+├── server.js
+├── config.json
 ├── lib/
-│   ├── limetime.js        # HTTP-клиент Limetime API
-│   ├── transform.js       # Преобразование сырых данных в таблицы
-│   ├── lapTracker.js      # Детекция новых кругов, очередь событий
-│   ├── vmixConfig.js      # Дефолты и resolve конфига vMix
-│   ├── vmixPush.js        # Отправка данных в vMix (SetText, OverlayInput)
-│   ├── excelExport.js     # Запись data.xlsx
-│   ├── configEditor.js    # Валидация и сохранение настроек события
-│   ├── setupRoutes.js     # Роуты /api/setup*
-│   └── parseLimetimeUrl.js # Парсинг URL → raceGuid/stageGuid/categoryGuid
+│   ├── limetime.js
+│   ├── transform.js
+│   ├── lapTracker.js
+│   ├── vmixConfig.js       # resolveVmixConfig, formatLapText
+│   ├── vmixPush.js         # payload, diff-кэш, TCP
+│   ├── vmixPlaques.js      # модель UI «Маппинг полей»
+│   ├── vmixTemplates.js    # модель UI «vMix шаблоны»
+│   ├── fieldMapping.js     # resolveAthleteValue
+│   ├── excelExport.js
+│   ├── configEditor.js
+│   ├── setupRoutes.js
+│   └── parseLimetimeUrl.js
 ├── public/
-│   ├── index.html + js/app.js    # Панель оператора (Vue 3)
-│   ├── config.html + js/config.js # Настройка категорий
-│   ├── laps.html + js/laps.js + css/laps.css  # Оверлей плашек
-│   └── ...
-└── exports/
-    └── data.xlsx          # Генерируется автоматически при каждом poll
+│   ├── index.html + js/app.js
+│   ├── config.html + js/config.js
+│   ├── laps.html + js/laps.js + css/laps.css
+│   └── css/main.css
+└── exports/data.xlsx
 ```
 
 ---
@@ -53,9 +54,10 @@ flowchart TB
     end
 
     subgraph Server["server.js"]
-        Poll[Polling 5s]
+        Poll[Polling pollIntervalMs]
         State[raceData / frozenSnapshot]
         Freeze[dataFrozen]
+        Config[config in-memory]
     end
 
     subgraph Lib
@@ -63,17 +65,20 @@ flowchart TB
         LTk[lapTracker.js]
         VP[vmixPush.js]
         XL[excelExport.js]
+        VC[resolveVmixConfig]
     end
 
-    LT -->|GET results| Poll
+    LT -->|GET| Poll
     Poll --> TR
     TR --> State
     State --> VP
-    VP -->|SetText| VM
+    VP -->|SetText diff-cache| VM
     Poll --> LTk
     LTk -->|events| BS
     Poll --> XL
-    Freeze -.->|блокирует vMix/laps| VP
+    Config --> VC
+    VC --> VP
+    Freeze -.->|блокирует push/laps| VP
     Freeze -.-> LTk
 ```
 
@@ -81,183 +86,185 @@ flowchart TB
 
 ## Жизненный цикл сервера
 
-При старте `server.js`:
+При старте:
 
-1. Загружает `config.json`.
-2. Создаёт TCP-соединение с vMix (`ConnectionTCP` из `node-vmix`).
-3. Инициализирует `lapTracker` и `vmixPusher`.
-4. Выполняет первый `refreshData()`.
-5. Запускает `setInterval(refreshData, pollIntervalMs)` (по умолчанию 5000 мс).
-6. Слушает HTTP на порту 3000.
+1. Загружает `config.json` в память (`config`).
+2. TCP к vMix (`ConnectionTCP`, `config.vmix.host`).
+3. `syncLapTrackerFromConfig()` — `totalLaps` из категорий.
+4. Первый `refreshData()`, затем `setInterval(refreshData, pollIntervalMs)`.
+5. HTTP на `PORT` (3000).
 
 ### Цикл опроса (`refreshData`)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  refreshData() — не более одного одновременного вызова      │
-├─────────────────────────────────────────────────────────────┤
-│  1. Для каждой категории активного события — параллельно:   │
-│     fetchResults → transformResults                         │
-│  2. Активная категория → обновить raceData                  │
-│  3. pushResultsToVmix(getDisplayData())                     │
-│  4. lapTracker.processRawAthletes — отсечка лидера (если не frozen) │
-│  5. saveExcel — все категории в data.xlsx                   │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  refreshData() — mutex isFetching                                │
+├──────────────────────────────────────────────────────────────────┤
+│  1. Параллельно для каждой категории события:                    │
+│       fetchResults → transformResults → categoryResults Map      │
+│  2. Активная категория → raceData (+ lastUpdated)                │
+│  3. pushResultsToVmix(getDisplayData())                          │
+│       → buildVmixPayload → sendPayloadWithCache (diff SetText)   │
+│  4. Если не frozen: lapTracker.processRawAthletes (все катег.)   │
+│       → plaqueEvents → broadcast (SSE) / recent API              │
+│  5. Если excelExportEnabled: saveExcel → data.xlsx               │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-**Активная категория** (`config.activeCategoryId`) определяет:
-- что показывается на главной панели;
-- какие данные уходят в vMix при автообновлении;
-- для какой категории отслеживаются отсечки лидера и обновляется vMix-титр круга.
+**Активная категория** (`config.activeCategoryId`):
 
-Все 4 категории обрабатываются для листа **«Эфир»** в Excel; плашки и vMix-титр — только активная категория.
+- таблица и страницы vMix на главной;
+- авто-push results/leaders/lap counter;
+- стартлист активной категории в vMix;
+- плашки и lapState для `/laps`.
+
+Все категории участвуют в Excel (лист на категорию); лист «Эфир» — только активная.
 
 ---
 
-## Модель данных после трансформации
+## transform.js
 
-Модуль `transform.js` возвращает объект:
+Вход: массив сырых участников Limetime. Выход:
 
 | Поле | Описание |
 |------|----------|
-| `mode` | `start` \| `live` \| `final` — фаза гонки |
-| `columns` | Заголовки колонок (7 полей на русском) |
-| `startList` | Стартовый лист (участники с `isOnStart`, по номеру) |
-| `liveList` | Промежуточные результаты |
-| `finalList` | Финальные результаты |
-| `displayList` | То, что показывает UI: startList или resultsList |
-| `resultsList` | Общий список результатов (ранжированные) |
-| `leaders` | Топ-3 лидера |
-| `lapDetails` | Все завершённые круги всех участников |
-| `rawCount` | Число участников в сыром ответе |
+| `mode` | `start` \| `live` \| `final` |
+| `startList`, `liveList`, `finalList`, `displayList`, `resultsList` | Таблицы |
+| `leaders` | Топ-3 |
+| `lapDetails` | Все завершённые круги (для replay) |
+| `rawCount` | Число участников |
 
-### Определение режима (`detectMode`)
-
-| Условие | mode |
-|---------|------|
-| Нет участников | `start` |
-| Все `isFinished` | `final` |
-| Есть хотя бы один с `position` | `live` |
-| Иначе | `start` |
-
-### Строка таблицы
-
-Каждая строка — объект с ключами:
-
-`место`, `участник`, `номер`, `возраст`, `клуб`, `результат`, `доЛидера`
+Строка таблицы: `место`, `участник`, `номер`, `возраст`, `клуб`, `результат`, `доЛидера`.  
+Поле `raw` сохраняет сырой объект для `fieldMapping` (dot-пути Limetime).
 
 ---
 
-## Состояние сервера
+## lapTracker.js
 
-Глобальные переменные в `server.js`:
+### Счётчик круга (N/M)
 
-| Переменная | Назначение |
-|------------|------------|
-| `config` | Текущий конфиг (перечитывается при save) |
-| `raceData` | Данные активной категории после последнего poll |
-| `dataFrozen` | Флаг заморозки |
-| `frozenSnapshot` | Копия `raceData` на момент заморозки |
-| `vmixConnected` | Статус TCP к vMix |
-| `lapTracker` | Singleton трекера кругов |
-| `sseClients` | Клиенты SSE (legacy, `/api/laps/stream`) |
+- **N** (`currentLap`) — текущий круг; растёт, когда **лидер** завершает новый круг.
+- **M** (`totalLaps`) — из `categories[].totalLaps` или `POST /api/laps/total-laps`.
+- Метка: `КРУГ N/M` или `КРУГ 1` до первого круга лидера.
+- В vMix: `formatLapText()` → поле `lap` (`singleFields.lap` → `lap.Text`).
 
-### Заморозка данных (`dataFrozen`)
+### Плашки отсечек
 
-При `POST /api/freeze { frozen: true }`:
+На каждом poll для каждого участника проверяются завершённые круги (`isOnLap && totalTime`). Новые круги (не в `seenPlaques`) → событие для `/laps`.
 
-- Сохраняется `frozenSnapshot = clone(raceData)`.
-- vMix получает данные из снимка, а не из live poll.
-- Новые события кругов **не** публикуются (`lapTracker`, SSE, simulate, replay блокируются).
-- **Poll Limetime и Excel продолжают работать** — оператор видит live-данные в `liveMode`, но вывод «заморожен».
+**Режим** `config.laps.mode` (`getLapsMode()`):
 
-При разморозке vMix снова получает актуальный `raceData`.
+| mode | Поле `gap` на плашке |
+|------|---------------------|
+| `leader` | Лидер: `totalTime` или `00:00`; остальные: `leaderDifference` с `+` или `00:00` |
+| `all` | У всех: `totalTime` или `00:00` |
+
+Смена N/M по лидеру — **одинакова** в обоих режимах (`updateLeaderCounter`).
+
+Первый poll категории — инициализация без плашек (`initialized`).
+
+### Клиент `/laps`
+
+Polling `GET /api/laps/recent` (~1 с). В режиме `leader` плашка лидера закреплена в `#plaque-leader-slot`; остальные — в общем стеке. В режиме `all` — класс `plaque-stack--all-mode`, единый скролл.
 
 ---
 
 ## Интеграция с vMix
 
-### Подключение
+### resolveVmixConfig (применение «на лету»)
 
-TCP к `config.vmix.host` (по умолчанию `localhost`). Команды через `node-vmix`: `SetText`, `OverlayInput1`.
+`resolveVmixConfig(config)` вызывается **при каждой** сборке payload (`buildVmixPayload`, manual page, preview). Читает актуальный in-memory `config.vmix`, мержит с `DEFAULT_VMIX` из `vmixConfig.js`. После `saveConfig()` через API изменения видны на следующем push без рестарта Node.
 
-### Автообновление (`vmixPush.pushAll`)
+Исключение: правка `config.json` на диске вручную требует рестарта (сервер не перечитывает файл автоматически).
 
-При каждом успешном poll (если `autoUpdate !== false` и vMix подключён):
+### Схема страниц (6×10)
 
-1. **Стартовые листы** — шаблоны `startlist{page}` (до `maxPages × pageSize` строк).
-2. **Результаты** — шаблоны `res{page}`; при `mode === 'final'` берётся `finalList`, иначе `liveList`.
-3. **Персональные победители** — `winner1`, `winner2`, `winner3` (по одной строке).
-4. **Тройка** — шаблон `winners` (3 строки).
+| Шаблон config | Подстановка | Назначение |
+|---------------|-------------|------------|
+| `resultsPage` | `results{page}` | Результаты, страницы 1–6 |
+| `startlistPage` | `startlist{page}` | Стартлист (дефолт) |
+| `startlistByCategory[id]` | per category | Переопределение шаблона стартлиста |
+| `resultManual` / `startlistManual` | `{page}` | Ручной клик в UI |
+| `winner1`…`winner3` | — | Персональные лидеры |
+| `winners` | — | Тройной титр |
+| `lapCounter` | — | Счётчик «КРУГ N/M» |
 
-Пустые слоты **очищаются** (отправляются пустые строки), чтобы в vMix не оставались старые ФИО.
+Дефолт `lapCounter` в коде: **`timer`**. В текущем `config.json` может быть другое имя (например `time`).
+
+### indexedFields и singleFields
+
+**indexedFields** — шаблон SelectedName с `{n}` (1…pageSize):
+
+```
+num  → "num {n}.Text"
+name → "name {n}.Text"
+...
+```
+
+**singleFields** — одно поле на Input:
+
+```
+class → "class.Text"
+lap   → "lap.Text"
+name 1 → "name 1.Text"
+```
+
+**startlistFields:** `num`, `name`, `age`, `city`  
+**resultsFields:** `place`, `num`, `name`, `age`, `city`, `result`, `gap`
+
+### fieldMapping
+
+`resolveAthleteValue(athlete, fieldKey, fieldMapping)`:
+
+- Путь в Limetime: `number`, `account.lastName+account.firstName`, …
+- Корень: `athlete.raw` или сам объект
+- Без маппинга — fallback на русские ключи строки таблицы
+
+Редактор: `vmixPlaques.js` → `GET/POST /api/vmix/field-mapping`.
+
+### pushAll и diff-кэш
+
+`createVmixPusher()` хранит `lastSentValues: Map<"Input|SelectedName", value>`.
+
+- `setTextCmd` — если значение совпало с прошлым, команда **не** добавляется в batch.
+- `OverlayInput1` и прочие функции — без кэша.
+- `resetCache()` — при `POST /api/category` (смена categoryId), снятии заморозки, `POST /api/vmix/templates`.
+
+`buildVmixPayload` собирает команды для: всех startlist-страниц активной категории, results pages, winners page, leader1–3, lap counter.
+
+### Превью
+
+`GET /api/vmix/preview` → `buildVmixPayload` + `groupPayloadByInput` → `{ inputs: { "results1": { "name 1.Text": "..." } } }` без TCP.
 
 ### Ручные команды
 
-`POST /vmixCommand` с `data`: `winner1`, `winner2`, `winner3`, `winners` (и legacy `lider`, `lider4`).
-
-Заполняет соответствующий шаблон и вызывает `OverlayInput1` — показывает оверлей в vMix.
-
-### Ручная страница
-
-`POST /row1` — оператор кликает страницу в UI; сервер заполняет шаблоны `result` и `startlist` (manual) для выбранной десятки участников.
-
-### Маппинг полей
-
-В `config.json` → `vmix.fields` задаются имена текстовых полей GT Title в шаблонах vMix, например:
-
-```
-place {row}.Text  →  place 1.Text, place 2.Text, ...
-```
-
-Подробнее — [backend-modules.md](./backend-modules.md#vmixconfigjs--vmixpushjs).
+- `POST /row1` — страница результатов + стартлиста (manual templates).
+- `POST /vmixCommand` — winner overlay + `OverlayInput1`.
 
 ---
 
-## Оверлей плашек кругов (`/laps`)
+## Excel
 
-Отдельная HTML-страница для Browser Source vMix (1920×1080, прозрачный фон).
+`saveExcel` при poll (если `config.excelExportEnabled !== false`):
 
-### Логика отсчёта (лидер)
+- Лист на категорию — `displayList`.
+- Лист «Эфир» — `lapStateToArray` активной категории.
 
-1. Найти лидера (`position === 1`) в сыром ответе Limetime.
-2. Взять его последний завершённый круг (`isOnLap && totalTime`).
-3. Если номер круга вырос с прошлого poll — создать **одно** событие-плашку и обновить `lapState` (`completedLap`, `currentLap = completedLap + 1`).
-4. Первый poll категории — инициализация без плашек.
+`POST /export` — полный `refreshData()`; Excel пишется только если автосохранение включено (но poll всегда выполняется).
 
-### Источник событий
+---
 
-Клиент **опрашивает** `GET /api/laps/recent?categoryId=...` каждую 1 с (не SSE — надёжнее в vMix Browser).
+## Состояние и заморозка
 
-Ответ включает `lapState` (текущий круг, лидер, время отсечки) и массив `events`.
+| Переменная | Назначение |
+|------------|------------|
+| `config` | In-memory конфиг |
+| `raceData` | Данные активной категории |
+| `dataFrozen` / `frozenSnapshot` | Заморозка vMix и плашек |
+| `lastCategoryResults` | Кэш для preview/push startlist |
+| `lapTracker` | События и lapState per category |
 
-### Событие отсечки
-
-```json
-{
-  "id": "men-23:15:1:24:32-abc123",
-  "place": "1",
-  "number": "23",
-  "name": "АНТОН СИНЦОВ",
-  "gap": "",
-  "lapNumber": "15",
-  "splitTime": "1:24:32",
-  "at": "2026-08-02T19:00:00.000Z",
-  "categoryId": "men"
-}
-```
-
-### vMix и Excel
-
-- **vMix** `pushLapCounter` → input `lapcounter`, поля `lap`, `leader`, `time`.
-- **Excel** лист **«Эфир»**: по строке на категорию (текущий круг, лидер, отсечка).
-
-### Клиентская логика (`laps.js`)
-
-- До **4 плашек** на экране; новая — снизу, старые сдвигаются вверх с анимацией.
-- Очередь событий + защита от дублей по `id`.
-- Fallback по таймеру, если `transitionend` не сработал (важно для vMix).
-- Режимы: `?demo=1` (карусель), `?test=1` (ручной ввод), URL-параметры для позиции/размеров (CSS-переменные).
+При freeze: vMix получает snapshot; новые plaqueEvents не публикуются; poll и Excel (если enabled) продолжаются.
 
 ---
 
@@ -265,16 +272,17 @@ place {row}.Text  →  place 1.Text, place 2.Text, ...
 
 ### Панель оператора (`/`)
 
-Vue 3 без сборки (CDN). Каждые 3 с:
+Vue 3 (CDN), `public/js/app.js`.
 
-1. `POST /sheet1` — таблица `displayList` (или frozen).
-2. `GET /api/config` — метаданные, режим, ошибки, экспорт.
-
-Функции: смена категории, WINNER 1/2/3/WINNERS, заморозка, **отсечки лидера** (тест/сброс), ссылки на `/laps`.
+- Poll UI: каждые 3 с `POST /sheet1` + `GET /api/config`.
+- Вкладки: `results`, `winners`, `vmix`, `mapping`, `templates` — `localStorage` ключ `velo.operatorActiveTab`.
+- Верхняя панель: две группы (управление / ссылки).
+- Баннер на `mapping` и `templates` (`isConfigTab`).
+- Модалка «Превью vMix» → `GET /api/vmix/preview`.
 
 ### Настройка (`/config`)
 
-Форма для 4 категорий: вставка URL Limetime → парсинг GUID → сохранение в `config.json` → перезапуск polling.
+Vue-форма, `POST /api/setup` — событие и 4 категории, парсинг URL.
 
 ---
 
@@ -282,74 +290,52 @@ Vue 3 без сборки (CDN). Каждые 3 с:
 
 ```json
 {
-  "limetime": {
-    "baseUrl": "https://services-results.limetime.io/results/get",
-    "apiKey": "...",
-    "origin": "https://racetime.online",
-    "referer": "https://racetime.online/"
-  },
+  "limetime": { "baseUrl", "apiKey", "origin", "referer" },
   "pollIntervalMs": 5000,
-  "vmix": { "host", "autoUpdate", "pageSize", "maxPages", "templates", "fields", "legacy" },
-  "activeEventId": "...",
-  "activeCategoryId": "...",
-  "events": [
-    {
-      "id", "name", "raceGuid",
-      "categories": [{ "id", "name", "stageGuid", "categoryGuid" }]
-    }
-  ]
+  "excelExportEnabled": false,
+  "laps": { "mode": "leader" },
+  "vmix": {
+    "host", "autoUpdate", "pageSize", "maxPages",
+    "templates", "indexedFields", "singleFields",
+    "startlistFields", "resultsFields",
+    "startlistByCategory", "fieldMapping", "legacy",
+    "winnerNameFields", "leaderNameFields", "indexedSpacedFrom"
+  },
+  "activeEventId", "activeCategoryId",
+  "events": [{
+    "id", "name", "raceGuid",
+    "categories": [{ "id", "name", "stageGuid", "categoryGuid", "totalLaps" }]
+  }]
 }
 ```
 
-### Событие и категории
-
-- Одно событие содержит ровно **4 категории** (женщины, мужчины, юниорки, юниоры — ID фиксированы в `configEditor.js`).
-- Все URL категорий должны иметь один `raceGuid`.
-- GUID извлекаются из пути `/results/get/{race}/{stage}/{category}`.
+Четыре категории с фиксированными `id` в `configEditor.js`: `women`, `men`, `junior_women`, `junior_men`.
 
 ---
 
-## Зависимости
+## Hot-reload конфига (без рестарта)
 
-| Пакет | Роль |
-|-------|------|
-| `express` | HTTP-сервер, static, JSON body |
-| `axios` | Запросы к Limetime |
-| `node-vmix` | TCP API vMix |
-| `exceljs` | Запись `.xlsx` |
-
----
-
-## Ограничения и особенности
-
-- **Один процесс** — состояние in-memory; перезапуск сбрасывает lapTracker (первый poll снова без плашек).
-- **vMix опционален** — без подключения авто-push просто пропускается; ошибки TCP не роняют сервер.
-- **Excel EBUSY** — если файл открыт в Excel, запись логируется как предупреждение.
-- **Leaders limit 3** — для vMix и UI; в `transform.js` функция `buildLeaders` по умолчанию принимает limit, в `transformResults` передаётся 3.
-- **Legacy команды vMix** — `lider` → winner1, `lider4` → winners (обратная совместимость).
+| Изменение | API / UI | Эффект |
+|-----------|----------|--------|
+| vMix templates/fields | `POST /api/vmix/templates` | Следующий push; resetCache |
+| fieldMapping | `POST /api/vmix/field-mapping` | Следующий push |
+| laps mode | `POST /api/laps/mode` | Новые plaqueEvents |
+| totalLaps | `POST /api/laps/total-laps` | lapState, vMix lap text |
+| excel toggle | `POST /api/excel-export` | Следующий poll |
+| setup | `POST /api/setup` | saveConfig + refreshData |
 
 ---
 
-## Диаграмма: переключение категории
+## Ограничения
 
-```mermaid
-sequenceDiagram
-    participant Op as Оператор
-    participant UI as app.js
-    participant S as server.js
-    participant LT as lapTracker
-
-    Op->>UI: Выбор категории
-    UI->>S: POST /api/category
-    S->>LT: initCategory(id)
-    Note over LT: Сброс seenLaps, первый poll без плашек
-    S->>S: refreshData()
-    S-->>UI: ok + mode + count
-```
+- Состояние in-memory — рестарт сбрасывает lapTracker (первый poll без плашек).
+- vMix опционален — без TCP push пропускается.
+- Excel EBUSY — предупреждение в консоль, сервер не падает.
+- Legacy vMix: `lider`, `lider4` в `/vmixCommand`.
 
 ---
 
 ## Дальнейшее чтение
 
-- [backend-modules.md](./backend-modules.md) — детали каждого модуля `lib/`
-- [api-reference.md](./api-reference.md) — полный список HTTP-эндпоинтов
+- [backend-modules.md](./backend-modules.md)
+- [api-reference.md](./api-reference.md)
