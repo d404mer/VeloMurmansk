@@ -17,6 +17,7 @@ Vue.createApp({
       activeCategoryUrl: '',
       resultCount: 0,
       totalLaps: 8,
+      lapsMode: 'leader',
       lapState: {
         completedLap: 0,
         currentLap: 1,
@@ -27,6 +28,27 @@ Vue.createApp({
         splitTime: '',
         updatedAt: null,
       },
+      activeTab: 'results',
+      vmixPreviewOpen: false,
+      vmixPreviewLoading: false,
+      vmixPreviewError: '',
+      vmixPreviewInputs: {},
+      vmixPreviewSelectedInput: '',
+      fieldMappingPlaques: [],
+      fieldMappingSelectedPlaqueId: 'startlist',
+      fieldMappingDefaults: {},
+      fieldMappingSourceFields: [],
+      fieldMappingSaving: false,
+      fieldMappingStatus: '',
+      fieldMappingStatusError: false,
+      vmixTemplateKeys: [],
+      vmixTemplateLabels: {},
+      vmixTemplatesDraft: {},
+      vmixIndexedFields: [],
+      vmixSingleFields: [],
+      vmixTemplatesSaving: false,
+      vmixTemplatesStatus: '',
+      vmixTemplatesStatusError: false,
     };
   },
   computed: {
@@ -49,6 +71,19 @@ Vue.createApp({
       if (this.liveMode === 'final') return 'Финал';
       return 'Стартовый лист';
     },
+    vmixPreviewInputNames() {
+      return Object.keys(this.vmixPreviewInputs).sort();
+    },
+    vmixPreviewFieldRows() {
+      const fields = this.vmixPreviewInputs[this.vmixPreviewSelectedInput];
+      if (!fields) return [];
+      return Object.keys(fields)
+        .sort()
+        .map((field) => ({ field, value: fields[field] }));
+    },
+    fieldMappingActivePlaque() {
+      return this.fieldMappingPlaques.find((plaque) => plaque.id === this.fieldMappingSelectedPlaqueId) || null;
+    },
   },
   methods: {
     formatNum(number) {
@@ -65,6 +100,180 @@ Vue.createApp({
 
     vmixCommand(com) {
       axios.post('/vmixCommand', { data: com });
+    },
+
+    openVmixPreview() {
+      this.vmixPreviewOpen = true;
+      this.refreshVmixPreview();
+    },
+
+    refreshVmixPreview() {
+      this.vmixPreviewLoading = true;
+      this.vmixPreviewError = '';
+      return axios
+        .get('/api/vmix/preview')
+        .then((res) => {
+          if (!res.data?.ok) {
+            this.vmixPreviewError = 'Не удалось загрузить превью';
+            return;
+          }
+          this.vmixPreviewInputs = res.data.inputs || {};
+          const names = Object.keys(this.vmixPreviewInputs).sort();
+          if (!names.includes(this.vmixPreviewSelectedInput)) {
+            this.vmixPreviewSelectedInput = names[0] || '';
+          }
+        })
+        .catch((err) => {
+          this.vmixPreviewError = err.response?.data?.error || err.message || 'Ошибка загрузки';
+        })
+        .finally(() => {
+          this.vmixPreviewLoading = false;
+        });
+    },
+
+    openFieldMappingTab() {
+      this.activeTab = 'mapping';
+      this.loadFieldMapping();
+    },
+
+    loadFieldMapping() {
+      this.fieldMappingStatus = '';
+      this.fieldMappingStatusError = false;
+      return axios
+        .get('/api/vmix/field-mapping')
+        .then((res) => {
+          if (!res.data?.ok) return;
+          this.fieldMappingSourceFields = res.data.availableSourceFields || [];
+          this.fieldMappingDefaults = res.data.defaultMapping || {};
+          this.fieldMappingPlaques = res.data.plaques || [];
+          if (
+            !this.fieldMappingPlaques.some((plaque) => plaque.id === this.fieldMappingSelectedPlaqueId)
+          ) {
+            this.fieldMappingSelectedPlaqueId = this.fieldMappingPlaques[0]?.id || '';
+          }
+        })
+        .catch((err) => {
+          this.fieldMappingStatus = err.response?.data?.error || err.message || 'Ошибка загрузки';
+          this.fieldMappingStatusError = true;
+        });
+    },
+
+    saveFieldMapping() {
+      this.fieldMappingSaving = true;
+      this.fieldMappingStatus = '';
+      this.fieldMappingStatusError = false;
+      return axios
+        .post('/api/vmix/field-mapping', { plaques: this.fieldMappingPlaques })
+        .then((res) => {
+          if (!res.data?.ok) {
+            this.fieldMappingStatus = 'Не удалось сохранить';
+            this.fieldMappingStatusError = true;
+            return;
+          }
+          this.fieldMappingPlaques = res.data.plaques || [];
+          this.fieldMappingStatus = 'Сохранено';
+        })
+        .catch((err) => {
+          this.fieldMappingStatus = err.response?.data?.error || err.message || 'Ошибка сохранения';
+          this.fieldMappingStatusError = true;
+        })
+        .finally(() => {
+          this.fieldMappingSaving = false;
+        });
+    },
+
+    openVmixTemplatesTab() {
+      this.activeTab = 'templates';
+      this.loadVmixTemplates();
+    },
+
+    objectToFieldEntries(obj) {
+      return Object.keys(obj || {})
+        .sort()
+        .map((key) => ({ key, value: obj[key] }));
+    },
+
+    fieldEntriesToObject(entries) {
+      const result = {};
+      for (const row of entries || []) {
+        const key = String(row.key || '').trim();
+        const value = String(row.value || '').trim();
+        if (!key) continue;
+        result[key] = value;
+      }
+      return result;
+    },
+
+    loadVmixTemplates() {
+      this.vmixTemplatesStatus = '';
+      this.vmixTemplatesStatusError = false;
+      return axios
+        .get('/api/vmix/templates')
+        .then((res) => {
+          if (!res.data?.ok) {
+            this.vmixTemplatesStatus = res.data?.error || 'Не удалось загрузить';
+            this.vmixTemplatesStatusError = true;
+            return;
+          }
+          this.vmixTemplateKeys = res.data.templateKeys || Object.keys(res.data.templates || {});
+          this.vmixTemplateLabels = res.data.templateLabels || {};
+          this.vmixTemplatesDraft = { ...(res.data.templates || {}) };
+          this.vmixIndexedFields = this.objectToFieldEntries(res.data.indexedFields);
+          this.vmixSingleFields = this.objectToFieldEntries(res.data.singleFields);
+        })
+        .catch((err) => {
+          this.vmixTemplatesStatus = err.response?.data?.error || err.message || 'Ошибка загрузки';
+          this.vmixTemplatesStatusError = true;
+        });
+    },
+
+    addIndexedField() {
+      this.vmixIndexedFields.push({ key: '', value: '' });
+    },
+
+    removeIndexedField(index) {
+      this.vmixIndexedFields.splice(index, 1);
+    },
+
+    addSingleField() {
+      this.vmixSingleFields.push({ key: '', value: '' });
+    },
+
+    removeSingleField(index) {
+      this.vmixSingleFields.splice(index, 1);
+    },
+
+    saveVmixTemplates() {
+      this.vmixTemplatesSaving = true;
+      this.vmixTemplatesStatus = '';
+      this.vmixTemplatesStatusError = false;
+      const payload = {
+        templates: { ...this.vmixTemplatesDraft },
+        indexedFields: this.fieldEntriesToObject(this.vmixIndexedFields),
+        singleFields: this.fieldEntriesToObject(this.vmixSingleFields),
+      };
+      return axios
+        .post('/api/vmix/templates', payload)
+        .then((res) => {
+          if (!res.data?.ok) {
+            this.vmixTemplatesStatus = res.data?.error || 'Не удалось сохранить';
+            this.vmixTemplatesStatusError = true;
+            return;
+          }
+          this.vmixTemplateKeys = res.data.templateKeys || this.vmixTemplateKeys;
+          this.vmixTemplateLabels = res.data.templateLabels || this.vmixTemplateLabels;
+          this.vmixTemplatesDraft = { ...(res.data.templates || {}) };
+          this.vmixIndexedFields = this.objectToFieldEntries(res.data.indexedFields);
+          this.vmixSingleFields = this.objectToFieldEntries(res.data.singleFields);
+          this.vmixTemplatesStatus = 'Сохранено';
+        })
+        .catch((err) => {
+          this.vmixTemplatesStatus = err.response?.data?.error || err.message || 'Ошибка сохранения';
+          this.vmixTemplatesStatusError = true;
+        })
+        .finally(() => {
+          this.vmixTemplatesSaving = false;
+        });
     },
 
     toggleFreeze() {
@@ -129,6 +338,14 @@ Vue.createApp({
         });
     },
 
+    saveLapsMode() {
+      axios
+        .post('/api/laps/mode', { mode: this.lapsMode })
+        .catch((err) => {
+          this.lastError = err.response?.data?.error || err.message || 'Ошибка смены режима отсечек';
+        });
+    },
+
     loadConfig() {
       return axios.get('/api/config').then((res) => {
         const event = res.data.events.find((e) => e.id === res.data.activeEventId);
@@ -149,6 +366,9 @@ Vue.createApp({
         }
         if (res.data.totalLaps) {
           this.totalLaps = res.data.totalLaps;
+        }
+        if (res.data.lapsMode) {
+          this.lapsMode = res.data.lapsMode;
         }
       });
     },

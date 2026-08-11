@@ -32,9 +32,11 @@
   const stackInner = document.getElementById('plaque-stack-inner');
   const leaderSlot = document.getElementById('plaque-leader-slot');
   const track = document.getElementById('plaque-track');
+  const plaqueStack = document.getElementById('plaque-stack');
   const testPanel = document.getElementById('test-panel');
   const lapStatusEl = document.getElementById('lap-status');
 
+  let lapsMode = 'leader';
   let leaderPlaque = null;
   const followers = [];
   const eventQueue = [];
@@ -58,17 +60,40 @@
   ];
   let demoIndex = 0;
 
+  function isLeaderMode() {
+    return lapsMode !== 'all';
+  }
+
+  function maxVisibleFollowers() {
+    return isLeaderMode() ? MAX_FOLLOWERS : MAX_PLAQUES;
+  }
+
   function isLeaderEvent(event) {
+    if (!isLeaderMode()) return false;
     if (Number(event.place) === 1) return true;
     if (leaderNumber !== '' && String(event.number) === String(leaderNumber)) return true;
     return false;
   }
 
   function gapField(event) {
-    if (isLeaderEvent(event)) {
-      return event.splitTime || event.gap || '';
+    if (!isLeaderMode()) {
+      return event.gap ?? event.splitTime ?? '00:00';
     }
-    return event.gap ?? '';
+    if (isLeaderEvent(event)) {
+      return event.splitTime || event.gap || '00:00';
+    }
+    return event.gap ?? '00:00';
+  }
+
+  function applyLapsMode(mode) {
+    const nextMode = mode === 'all' ? 'all' : 'leader';
+    if (lapsMode === nextMode) return;
+    lapsMode = nextMode;
+    if (plaqueStack) {
+      plaqueStack.classList.toggle('plaque-stack--all-mode', nextMode === 'all');
+    }
+    clearPlaques();
+    seenEventIds.clear();
   }
 
   function createPlaqueEl(event) {
@@ -215,7 +240,7 @@
     const el = createPlaqueEl(event);
     const entry = { el, id: event.id, isLeader: false };
 
-    if (followers.length >= MAX_FOLLOWERS) {
+    if (followers.length >= maxVisibleFollowers()) {
       shiftOldestFollower(el, entry);
       return;
     }
@@ -226,6 +251,10 @@
   }
 
   function appendPlaque(event) {
+    if (!isLeaderMode()) {
+      appendFollower(event);
+      return;
+    }
     if (isLeaderEvent(event)) {
       appendLeader(event);
     } else {
@@ -258,7 +287,7 @@
 
     if (!shifting && !clearing && eventQueue.length) {
       const next = eventQueue[0];
-      if (isLeaderEvent(next) || followers.length < MAX_FOLLOWERS) {
+      if (isLeaderEvent(next) || followers.length < maxVisibleFollowers()) {
         processQueue();
       }
     }
@@ -267,14 +296,10 @@
   function removeAllPlaquesNow() {
     resetTrackPosition();
     resetStackInner();
-    if (leaderPlaque) {
-      leaderPlaque.el.remove();
-      leaderPlaque = null;
-    }
-    while (followers.length) {
-      const entry = followers.pop();
-      entry.el.remove();
-    }
+    leaderPlaque = null;
+    followers.length = 0;
+    if (leaderSlot) leaderSlot.replaceChildren();
+    if (track) track.replaceChildren();
   }
 
   function clearAllAnimated() {
@@ -297,7 +322,7 @@
         parseFloat(
           getComputedStyle(document.documentElement).getPropertyValue('--plaque-stack-gap')
         ) || 7;
-      const count = (leaderPlaque ? 1 : 0) + followers.length;
+      const count = (isLeaderMode() && leaderPlaque ? 1 : 0) + followers.length;
       const distance = count * row + Math.max(0, count - 1) * gap;
 
       let finished = false;
@@ -325,7 +350,6 @@
     shifting = false;
     clearing = false;
     eventQueue.length = 0;
-    seenEventIds.clear();
     removeAllPlaquesNow();
   }
 
@@ -430,6 +454,10 @@
         const res = await fetch(pollUrl(), { cache: 'no-store' });
         const data = await res.json();
         if (!data.ok || !Array.isArray(data.events)) return;
+
+        if (data.lapsMode) {
+          applyLapsMode(data.lapsMode);
+        }
 
         if (data.lapState) {
           updateLapStatus(data.lapState);

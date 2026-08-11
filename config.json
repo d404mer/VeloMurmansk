@@ -6,6 +6,9 @@
     "referer": "https://racetime.online/"
   },
   "pollIntervalMs": 5000,
+  "laps": {
+    "mode": "all"
+  },
   "vmix": {
     "host": "localhost",
     "autoUpdate": true,
@@ -76,6 +79,15 @@
       "men": "startlist{page}",
       "junior_women": "startlist{page}",
       "junior_men": "startlist{page}"
+    },
+    "fieldMapping": {
+      "num": "number",
+      "name": "account.lastName+account.firstName",
+      "age": "account.age",
+      "city": "club",
+      "place": "position",
+      "result": "resultTime",
+      "gap": "leaderDifference"
     }
   },
   "activeEventId": "xcochamp2025",

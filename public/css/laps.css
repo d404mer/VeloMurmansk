@@ -85,6 +85,14 @@ body {
   max-height: calc(var(--plaque-row-height) * 3 + var(--plaque-stack-gap) * 2);
 }
 
+#plaque-stack.plaque-stack--all-mode #plaque-leader-slot {
+  display: none;
+}
+
+#plaque-stack.plaque-stack--all-mode #plaque-followers {
+  max-height: calc(var(--plaque-row-height) * 4 + var(--plaque-stack-gap) * 3);
+}
+
 #plaque-track {
   display: flex;
   flex-direction: column;
