@@ -9,7 +9,7 @@
   --plaque-width   — общая ширина плашки (имя растягивается само)
   --plaque-place   — ширина блока «место»
   --plaque-number  — ширина блока «номер»
-  --plaque-gap-w   — ширина блока «до лидера»
+  --plaque-gap-w   — ширина блока «до лидера» / результат лидера
   --plaque-inner-gap — зазор между блоками внутри плашки
   --plaque-stack-gap — зазор между плашками
   ═══════════════════════════════════════════════════════════════
@@ -24,6 +24,7 @@
   --plaque-gap-w: 70px;
   --plaque-inner-gap: 7px;
   --plaque-stack-gap: 7px;
+  --plaque-scroll-ms: 0.4s;
 }
 
 *,
@@ -57,12 +58,47 @@ body {
   z-index: 1;
 }
 
+#plaque-stack-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--plaque-stack-gap);
+  will-change: transform;
+  transition: transform var(--plaque-scroll-ms) ease-out;
+}
+
+#plaque-stack-inner.plaque-stack-inner--clear {
+  transform: translateY(calc(-1 * (var(--plaque-row-height) * 4 + var(--plaque-stack-gap) * 3)));
+}
+
+#plaque-leader-slot {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+#plaque-leader-slot:empty {
+  display: none;
+}
+
+#plaque-followers {
+  flex: 0 0 auto;
+  overflow: hidden;
+  max-height: calc(var(--plaque-row-height) * 3 + var(--plaque-stack-gap) * 2);
+}
+
+#plaque-stack.plaque-stack--all-mode #plaque-leader-slot {
+  display: none;
+}
+
+#plaque-stack.plaque-stack--all-mode #plaque-followers {
+  max-height: calc(var(--plaque-row-height) * 4 + var(--plaque-stack-gap) * 3);
+}
+
 #plaque-track {
   display: flex;
   flex-direction: column;
   gap: var(--plaque-stack-gap);
   will-change: transform;
-  transition: transform 0.4s ease-out;
+  transition: transform var(--plaque-scroll-ms) ease-out;
 }
 
 #plaque-track.plaque-track--shift {
@@ -75,23 +111,17 @@ body {
   gap: var(--plaque-inner-gap);
   width: var(--plaque-width);
   height: var(--plaque-row-height);
-  opacity: 0;
-  transform: translateX(-24px);
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  flex: 0 0 auto;
+  opacity: 1;
+  transform: translateY(100%);
+  transition: transform var(--plaque-scroll-ms) ease-out;
 }
 
 .plaque.plaque--visible {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.plaque.plaque--leaving-top {
-  opacity: 0;
-  transition: opacity 0.35s ease-out;
+  transform: translateY(0);
 }
 
 .plaque.plaque--instant {
-  opacity: 1;
   transform: none;
   transition: none;
 }
@@ -142,6 +172,10 @@ body {
   width: var(--plaque-number);
   background: #e30613;
   color: #fff;
+}
+
+.plaque__number .plaque__fit {
+  font-size: 13px;
 }
 
 .plaque__name {

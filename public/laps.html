@@ -8,12 +8,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/laps.css?v=9">
+  <link rel="stylesheet" href="/css/laps.css?v=14">
 </head>
 
 <body>
   <div id="plaque-stack">
-    <div id="plaque-track"></div>
+    <div id="plaque-stack-inner">
+      <div id="plaque-leader-slot"></div>
+      <div id="plaque-followers">
+        <div id="plaque-track"></div>
+      </div>
+    </div>
   </div>
   <div id="test-panel" class="test-panel hidden">
     <div id="lap-status" class="lap-status"></div>
@@ -22,7 +27,7 @@
     <button type="button" id="btn-replay">Replay отсечек</button>
     <button type="button" id="btn-clear">Очистить</button>
   </div>
-  <script src="/js/laps.js?v=9"></script>
+  <script src="/js/laps.js?v=15"></script>
 </body>
 
 </html>

@@ -6,8 +6,11 @@ const { fetchResults } = require('./lib/limetime');
 const { transformResults } = require('./lib/transform');
 const { exportDataFile, lapStateToArray } = require('./lib/excelExport');
 const { createSetupRoutes } = require('./lib/setupRoutes');
-const { createLapTracker } = require('./lib/lapTracker');
-const { createVmixPusher } = require('./lib/vmixPush');
+const { createLapTracker, resolvePlaqueGap } = require('./lib/lapTracker');
+const { createVmixPusher, buildVmixPayload, groupPayloadByInput } = require('./lib/vmixPush');
+const { buildPlaquesView, applyPlaquesToConfig, AVAILABLE_SOURCE_FIELDS, DEFAULT_FIELD_MAPPING } = require('./lib/vmixPlaques');
+const { getTemplatesView, validateTemplatesUpdate, applyTemplatesUpdate } = require('./lib/vmixTemplates');
+const { resolveVmixConfig } = require('./lib/vmixConfig');
 const { buildSetupView } = require('./lib/configEditor');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -124,6 +127,10 @@ function pushResultsToVmix(data, categoryResults) {
   const event = getActiveEvent();
   const activeCategory = getActiveCategory(event);
   const startlists = buildCategoryStartlists(event, categoryResults || lastCategoryResults);
+  if (process.env.VMIX_LOG_TEMPLATES === '1') {
+    const vcfg = resolveVmixConfig(config);
+    console.log('[vmix/push] templates:', vcfg.templates);
+  }
   vmixPusher.pushAll(
     config,
     { ...data, meta: buildVmixMeta(event, activeCategory) },
@@ -147,6 +154,14 @@ async function fetchCategoryData(event, category) {
 
 function resolveCategoryId(requestedId) {
   return requestedId || config.activeCategoryId;
+}
+
+function getLapsMode() {
+  return config.laps?.mode === 'all' ? 'all' : 'leader';
+}
+
+function isExcelExportEnabled() {
+  return config.excelExportEnabled !== false;
 }
 
 function broadcastLapEvent(event) {
@@ -182,14 +197,24 @@ function participantToOverlayName(participant) {
 }
 
 function lapDetailToEvent(categoryId, row, index) {
+  const splitTime = row.totalTime ?? '';
+  const place = row.groupRacePosition ?? '1';
   return {
     id: `replay-${categoryId}-${index}-${row.номер}-${row.lapNumber}`,
-    place: row.groupRacePosition ?? '1',
+    place,
     number: row.номер ?? '',
     name: participantToOverlayName(row.участник),
-    gap: row.leaderDifference ?? '',
+    gap: resolvePlaqueGap(
+      {
+        totalTime: splitTime,
+        leaderDifference: row.leaderDifference,
+        place,
+        gap: row.leaderDifference,
+      },
+      getLapsMode()
+    ),
     lapNumber: row.lapNumber ?? '',
-    splitTime: row.totalTime ?? '',
+    splitTime,
     at: new Date(Date.now() + index).toISOString(),
     categoryId,
   };
@@ -297,7 +322,8 @@ async function refreshData() {
           const result = lapTracker.processRawAthletes(
             category.id,
             raw,
-            getCategoryTotalLaps(category)
+            getCategoryTotalLaps(category),
+            getLapsMode()
           );
           if (category.id === activeCategory.id) {
             handleLapPollResult(category.id, result);
@@ -308,7 +334,9 @@ async function refreshData() {
       raceData.lastError = `Failed to load ${activeCategory.name}`;
     }
 
-    await saveExcel(event, categoryResults);
+    if (isExcelExportEnabled()) {
+      await saveExcel(event, categoryResults);
+    }
   } catch (err) {
     console.error(err.message || err);
     raceData.lastError = err.message || String(err);
@@ -372,6 +400,8 @@ app.get('/api/config', (req, res) => {
     resultCount: display.displayList?.length ?? 0,
     lapState: lapTracker.getLapState(config.activeCategoryId),
     totalLaps: getCategoryTotalLaps(getActiveCategory(event)),
+    lapsMode: getLapsMode(),
+    excelExportEnabled: isExcelExportEnabled(),
   });
 });
 
@@ -426,6 +456,17 @@ app.post('/export', async (req, res) => {
   }
 });
 
+app.post('/api/excel-export', (req, res) => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
+    return;
+  }
+  config.excelExportEnabled = enabled;
+  saveConfig();
+  res.json({ ok: true, excelExportEnabled: isExcelExportEnabled() });
+});
+
 app.post('/updateData', async (req, res) => {
   await refreshData();
   res.json({ ok: true, mode: getDisplayData().mode, count: getDisplayData().displayList.length });
@@ -469,6 +510,7 @@ app.get('/api/laps/recent', (req, res) => {
   res.json({
     ok: true,
     dataFrozen,
+    lapsMode: getLapsMode(),
     lapState: lapTracker.getLapState(categoryId),
     events: dataFrozen ? [] : lapTracker.getRecentEvents(categoryId, limit),
   });
@@ -481,9 +523,22 @@ app.get('/api/laps/status', (req, res) => {
     ok: true,
     dataFrozen,
     categoryId,
+    lapsMode: getLapsMode(),
     lapState: lapTracker.getLapState(categoryId),
     lastEvent: events.length ? events[events.length - 1] : null,
   });
+});
+
+app.post('/api/laps/mode', (req, res) => {
+  const mode = req.body?.mode;
+  if (mode !== 'leader' && mode !== 'all') {
+    res.status(400).json({ ok: false, error: 'mode must be "leader" or "all"' });
+    return;
+  }
+  if (!config.laps) config.laps = {};
+  config.laps.mode = mode;
+  saveConfig();
+  res.json({ ok: true, lapsMode: getLapsMode() });
 });
 
 app.post('/api/laps/simulate-leader', (req, res) => {
@@ -492,7 +547,7 @@ app.post('/api/laps/simulate-leader', (req, res) => {
     return;
   }
   const categoryId = resolveCategoryId(req.body?.categoryId);
-  const result = lapTracker.simulateLeaderLap(categoryId, req.body || {});
+  const result = lapTracker.simulateLeaderLap(categoryId, req.body || {}, getLapsMode());
   handleLapPollResult(categoryId, result);
   res.json({
     ok: true,
@@ -541,7 +596,7 @@ app.post('/api/laps/simulate', (req, res) => {
     return;
   }
   const categoryId = resolveCategoryId(req.body?.categoryId);
-  const event = lapTracker.addManualEvent(categoryId, req.body || {});
+  const event = lapTracker.addManualEvent(categoryId, req.body || {}, getLapsMode());
   broadcastLapEvent(event);
   res.json({ ok: true, event });
 });
@@ -581,6 +636,70 @@ app.post('/api/laps/replay', (req, res) => {
   }
 
   playNext();
+});
+
+app.get('/api/vmix/preview', (req, res) => {
+  const event = getActiveEvent();
+  const activeCategory = getActiveCategory(event);
+  const display = getDisplayData();
+  const startlists = buildCategoryStartlists(event, lastCategoryResults);
+  const payload = buildVmixPayload(
+    config,
+    { ...display, meta: buildVmixMeta(event, activeCategory) },
+    startlists
+  );
+  res.json({
+    ok: true,
+    inputs: groupPayloadByInput(payload),
+  });
+});
+
+app.get('/api/vmix/templates', (req, res) => {
+  res.json({
+    ok: true,
+    ...getTemplatesView(config),
+  });
+});
+
+app.post('/api/vmix/templates', (req, res) => {
+  const error = validateTemplatesUpdate(req.body || {});
+  if (error) {
+    res.status(400).json({ ok: false, error });
+    return;
+  }
+  applyTemplatesUpdate(config, req.body || {});
+  saveConfig();
+  vmixPusher.resetCache();
+  const view = getTemplatesView(config);
+  console.log('[vmix/templates] updated, resultsPage=%s, startlistPage=%s', view.templates.resultsPage, view.templates.startlistPage);
+  res.json({
+    ok: true,
+    ...view,
+  });
+});
+
+app.get('/api/vmix/field-mapping', (req, res) => {
+  const plaques = buildPlaquesView(config);
+  res.json({
+    ok: true,
+    plaques,
+    availableSourceFields: AVAILABLE_SOURCE_FIELDS,
+    defaultMapping: DEFAULT_FIELD_MAPPING,
+  });
+});
+
+app.post('/api/vmix/field-mapping', (req, res) => {
+  const plaques = req.body?.plaques;
+  if (!Array.isArray(plaques)) {
+    res.status(400).json({ ok: false, error: 'Expected { plaques: [...] }' });
+    return;
+  }
+  applyPlaquesToConfig(config, plaques);
+  saveConfig();
+  res.json({
+    ok: true,
+    plaques: buildPlaquesView(config),
+  });
 });
 
 app.post('/vmixCommand', (req, res) => {

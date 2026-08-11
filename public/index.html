@@ -9,8 +9,84 @@
   <style>
     .meta-bar { color: #ccc; margin-bottom: 12px; font-size: 14px; }
     .meta-bar .api-url { word-break: break-all; font-size: 12px; opacity: 0.85; }
-    .controls { margin-bottom: 16px; }
-    .controls select, .controls button { margin-right: 8px; margin-bottom: 8px; }
+    .controls { margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-start; }
+    .controls__group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .controls__label {
+      width: 100%;
+      margin: 0 0 2px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #adb5bd;
+    }
+    .operator-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .operator-tabs .btn { min-width: 120px; }
+    .operator-tabs .btn.active {
+      background-color: #495159;
+      border-color: #adb5bd;
+      color: #fff;
+    }
+    .operator-tabs__divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #adb5bd;
+      font-size: 12px;
+      padding: 0 4px;
+      white-space: nowrap;
+    }
+    .operator-tabs__divider::before {
+      content: '';
+      display: block;
+      width: 1px;
+      height: 24px;
+      background: #5a6268;
+    }
+    .config-tab-banner {
+      background: rgba(255, 209, 102, 0.12);
+      border: 1px solid rgba(255, 209, 102, 0.35);
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      color: #ffd166;
+      font-size: 13px;
+    }
+    .vmix-broadcast-panel {
+      background: #3d4650;
+      border: 1px solid #5a6268;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+      color: #eee;
+    }
+    .vmix-broadcast-panel h2 { font-size: 16px; margin: 0 0 12px; color: #fff; }
+    .vmix-broadcast-row {
+      display: grid;
+      grid-template-columns: minmax(180px, 240px) 1fr;
+      gap: 10px 16px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .vmix-broadcast-row label { margin: 0; font-size: 13px; color: #adb5bd; }
+    .vmix-broadcast-hint { font-size: 12px; color: #adb5bd; margin: 8px 0 0; }
+    li.list-group-item.list-group-item--sent {
+      background-color: #2d6a4f !important;
+      border-color: #40916c;
+      position: relative;
+    }
+    li.list-group-item.list-group-item--sent::after {
+      content: '✓';
+      position: absolute;
+      right: 12px;
+      top: 8px;
+      color: #95d5b2;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    @media (max-width: 600px) {
+      .vmix-broadcast-row { grid-template-columns: 1fr; }
+    }
     .results-table-wrap { overflow-x: auto; margin-bottom: 24px; }
     .results-table { width: 100%; font-size: 14px; color: #eee; border-collapse: collapse; }
     .results-table th,
@@ -41,9 +117,205 @@
     .lap-panel__actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .lap-panel__hint { margin: 0 0 10px; font-size: 12px; color: #adb5bd; }
     .lap-panel__total-laps input { max-width: 72px; }
-    .page-wrap { padding-bottom: 72px; }
+    .page-wrap { padding-bottom: 24px; }
+    .winners-panel {
+      background: #3d4650;
+      border: 1px solid #5a6268;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+      color: #eee;
+    }
+    .winners-panel h2 { font-size: 16px; margin: 0 0 8px; color: #fff; }
+    .winners-panel__hint { margin: 0 0 16px; font-size: 12px; color: #adb5bd; }
+    .winners-panel__actions {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .winners-panel__actions .btn { height: 44px; width: 100%; margin: 0; }
+    @media (max-width: 768px) {
+      .winners-panel__actions { grid-template-columns: repeat(2, 1fr); }
+    }
+    .field-mapping-panel {
+      background: #3d4650;
+      border: 1px solid #5a6268;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+      color: #eee;
+    }
+    .field-mapping-panel h2 { font-size: 16px; margin: 0 0 8px; color: #fff; }
+    .field-mapping-panel__hint { margin: 0 0 12px; font-size: 12px; color: #adb5bd; }
+    .field-mapping-plaque-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .field-mapping-plaque-tabs .btn { min-width: 100px; }
+    .field-mapping-plaque-tabs .btn.active {
+      background-color: #495159;
+      border-color: #adb5bd;
+      color: #fff;
+    }
+    .field-mapping-template {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .field-mapping-template label { margin: 0; font-size: 13px; color: #adb5bd; }
+    .field-mapping-table-wrap { overflow-x: auto; margin-bottom: 12px; }
+    .field-mapping-table {
+      width: 100%;
+      font-size: 13px;
+      border-collapse: collapse;
+      color: #eee;
+    }
+    .field-mapping-table th,
+    .field-mapping-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #5a6268;
+      vertical-align: middle;
+    }
+    .field-mapping-table th {
+      color: #adb5bd;
+      font-weight: 600;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .field-mapping-table .col-key { width: 120px; }
+    .field-mapping-table .col-hint { font-size: 11px; color: #888; margin-top: 2px; }
+    .field-mapping-actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .field-mapping-status { font-size: 13px; color: #8aff8a; }
+    .field-mapping-status.error { color: #ff8a8a; }
+    @media (max-width: 600px) {
+      .field-mapping-template { grid-template-columns: 1fr; gap: 4px; }
+    }
+    .vmix-templates-panel {
+      background: #3d4650;
+      border: 1px solid #5a6268;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+      color: #eee;
+    }
+    .vmix-templates-panel h2,
+    .vmix-templates-panel h3 { color: #fff; }
+    .vmix-templates-panel h2 { font-size: 16px; margin: 0 0 8px; }
+    .vmix-templates-panel h3 { font-size: 14px; margin: 20px 0 10px; }
+    .vmix-templates-panel__hint { margin: 0 0 16px; font-size: 12px; color: #adb5bd; }
+    .vmix-templates-grid {
+      display: grid;
+      grid-template-columns: minmax(220px, 280px) 1fr;
+      gap: 10px 12px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .vmix-templates-grid label { margin: 0; font-size: 13px; color: #adb5bd; }
+    .vmix-templates-row-actions { white-space: nowrap; }
+    @media (max-width: 700px) {
+      .vmix-templates-grid { grid-template-columns: 1fr; }
+    }
     @media (max-width: 900px) {
       .athlete-row { grid-template-columns: 1fr; gap: 2px; }
+    }
+    .vmix-preview-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(0, 0, 0, 0.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .vmix-preview-modal {
+      background: #303841;
+      border: 1px solid #5a6268;
+      border-radius: 8px;
+      width: min(960px, 100%);
+      max-height: min(80vh, 720px);
+      display: flex;
+      flex-direction: column;
+      color: #eee;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    }
+    .vmix-preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid #5a6268;
+    }
+    .vmix-preview-header h2 { font-size: 18px; margin: 0; color: #fff; }
+    .vmix-preview-toolbar {
+      padding: 10px 16px;
+      border-bottom: 1px solid #5a6268;
+    }
+    .vmix-preview-body {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 320px;
+      overflow: hidden;
+    }
+    .vmix-preview-inputs {
+      border-right: 1px solid #5a6268;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .vmix-preview-inputs button {
+      text-align: left;
+      background: #495159;
+      border: 1px solid transparent;
+      color: #eee;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .vmix-preview-inputs button:hover { border-color: #adb5bd; }
+    .vmix-preview-inputs button.active {
+      background: #182E45;
+      border-color: #adb5bd;
+    }
+    .vmix-preview-fields {
+      overflow: auto;
+      padding: 12px 16px;
+    }
+    .vmix-preview-fields table {
+      width: 100%;
+      font-size: 13px;
+      border-collapse: collapse;
+    }
+    .vmix-preview-fields th,
+    .vmix-preview-fields td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #5a6268;
+      vertical-align: top;
+    }
+    .vmix-preview-fields th {
+      color: #adb5bd;
+      font-weight: 600;
+      text-align: left;
+      width: 45%;
+    }
+    .vmix-preview-fields td {
+      font-family: ui-monospace, monospace;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .vmix-preview-empty { color: #adb5bd; font-size: 14px; padding: 24px; }
+    .vmix-preview-error { color: #ff8a8a; padding: 0 16px 12px; font-size: 13px; }
+    @media (max-width: 700px) {
+      .vmix-preview-body { grid-template-columns: 1fr; }
+      .vmix-preview-inputs {
+        border-right: none;
+        border-bottom: 1px solid #5a6268;
+        max-height: 140px;
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
     }
   </style>
 </head>
@@ -54,17 +326,23 @@
         <h1>VELO Limetime</h1>
 
         <div class="controls">
-          <select class="form-select d-inline-block w-auto" v-model="activeCategoryId" @change="changeCategory">
-            <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-          </select>
-          <button type="button" class="btn btn-secondary" @click="refreshNow">Обновить</button>
-          <button type="button" class="btn btn-success" @click="exportExcel">Сохранить в Excel</button>
-          <a href="/config" class="btn btn-outline-light">Настройки</a>
-          <a href="/laps" class="btn btn-outline-light" target="_blank">Плашки кругов</a>
-          <a href="/laps?test=1" class="btn btn-outline-secondary" target="_blank">Тест плашек</a>
-          <button type="button" class="btn btn-warning" @click="toggleFreeze">
-            {{ dataFrozen ? 'Снять заморозку' : 'Заморозить данные' }}
-          </button>
+          <div class="controls__group">
+            <div class="controls__label">Живое управление</div>
+            <select class="form-select d-inline-block w-auto" v-model="activeCategoryId" @change="changeCategory">
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+            </select>
+            <button type="button" class="btn btn-secondary" @click="refreshNow">Обновить</button>
+            <button type="button" class="btn btn-warning" @click="toggleFreeze">
+              {{ dataFrozen ? 'Снять заморозку' : 'Заморозить данные' }}
+            </button>
+          </div>
+          <div class="controls__group">
+            <div class="controls__label">Ссылки и инструменты</div>
+            <a href="/config" class="btn btn-sm btn-outline-light" title="Настройки события и категорий">Настройки</a>
+            <a href="/laps" class="btn btn-sm btn-outline-light" target="_blank" title="Browser Source плашек отсечек">Плашки кругов</a>
+            <a href="/laps?test=1" class="btn btn-sm btn-outline-secondary" target="_blank" title="Тестовая панель плашек">Тест плашек</a>
+            <button type="button" class="btn btn-sm btn-outline-info" @click="openVmixPreview" title="Превью полей vMix без отправки">Превью vMix</button>
+          </div>
         </div>
 
         <div class="meta-bar">
@@ -78,6 +356,45 @@
           <div v-if="activeCategoryUrl" class="api-url">API: {{ activeCategoryUrl }}</div>
         </div>
 
+        <div class="operator-tabs">
+          <button
+            type="button"
+            class="btn btn-outline-light"
+            :class="{ active: activeTab === 'results' }"
+            @click="setActiveTab('results')"
+          >Результаты</button>
+          <button
+            type="button"
+            class="btn btn-outline-light"
+            :class="{ active: activeTab === 'winners' }"
+            @click="setActiveTab('winners')"
+          >Победители</button>
+          <div class="operator-tabs__divider">Настройка vMix</div>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            :class="{ active: activeTab === 'vmix' }"
+            @click="setActiveTab('vmix')"
+          >vMix</button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            :class="{ active: activeTab === 'mapping' }"
+            @click="openFieldMappingTab"
+          >Маппинг полей</button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            :class="{ active: activeTab === 'templates' }"
+            @click="openVmixTemplatesTab"
+          >vMix шаблоны</button>
+        </div>
+
+        <div v-if="isConfigTab" class="config-tab-banner">
+          Изменения применяются сразу к активной трансляции
+        </div>
+
+        <div v-show="activeTab === 'results'">
         <div class="lap-panel">
           <h2>Круги и отсечки</h2>
           <div class="lap-panel__grid">
@@ -111,6 +428,17 @@
             </div>
           </div>
           <p class="lap-panel__hint">Отсечки — при прохождении круга любым участником. N/M меняется, когда лидер завершает круг.</p>
+          <div class="lap-panel__grid" style="margin-bottom: 12px;">
+            <div>
+              <div class="lap-panel__label">Режим отсечек</div>
+              <div class="lap-panel__value">
+                <select class="form-select form-select-sm d-inline-block w-auto" v-model="lapsMode" @change="saveLapsMode">
+                  <option value="leader">По лидеру</option>
+                  <option value="all">По всем</option>
+                </select>
+              </div>
+            </div>
+          </div>
           <div class="lap-panel__actions">
             <button type="button" class="btn btn-sm btn-info" @click="simulateLeaderLap" :disabled="dataFrozen">
               +1 круг (тест)
@@ -152,7 +480,12 @@
         <div class="vmix-pages-title">Страницы для vMix (клик — отправить в эфир)</div>
         <ul class="list-group">
           <div class="list-item-container" v-for="(item, index) in sheet1" :key="index">
-            <li class="list-group-item" @click="clickItem(item, index)" :id="index">
+            <li
+              class="list-group-item"
+              :class="{ 'list-group-item--sent': sentPageIndex === index }"
+              @click="clickItem(item, index)"
+              :id="index"
+            >
               <div class="number" style="width: 100%">Страница {{ index + 1 }}</div>
               <div v-for="(athlet, ai) in item" class="athlete-row" :key="ai">
                 <span><strong>{{ athlet.место }}</strong></span>
@@ -168,13 +501,255 @@
             </li>
           </div>
         </ul>
-      </div>
+        </div>
 
-      <div class="footer">
-        <button type="button" class="btn btn-primary" @click='vmixCommand("winner1")'>WINNER 1</button>
-        <button type="button" class="btn btn-primary" @click='vmixCommand("winner2")'>WINNER 2</button>
-        <button type="button" class="btn btn-primary" @click='vmixCommand("winner3")'>WINNER 3</button>
-        <button type="button" class="btn btn-primary" @click='vmixCommand("winners")'>WINNERS</button>
+        <div v-show="activeTab === 'winners'" class="winners-panel">
+          <h2>Победители</h2>
+          <p class="winners-panel__hint">Клик — отправить соответствующую страницу в vMix.</p>
+          <div class="winners-panel__actions">
+            <button type="button" class="btn btn-primary" @click='vmixCommand("winner1")'>WINNER 1</button>
+            <button type="button" class="btn btn-primary" @click='vmixCommand("winner2")'>WINNER 2</button>
+            <button type="button" class="btn btn-primary" @click='vmixCommand("winner3")'>WINNER 3</button>
+            <button type="button" class="btn btn-primary" @click='vmixCommand("winners")'>WINNERS</button>
+          </div>
+        </div>
+
+        <div v-show="activeTab === 'vmix'" class="vmix-broadcast-panel">
+          <h2>Настройки вещания</h2>
+          <div class="vmix-broadcast-row">
+            <label for="excel-export-toggle">Автосохранение в Excel</label>
+            <div class="form-check form-switch">
+              <input
+                id="excel-export-toggle"
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+                :checked="excelExportEnabled"
+                @change="saveExcelExportEnabled($event.target.checked)"
+              />
+            </div>
+          </div>
+          <div class="vmix-broadcast-row">
+            <label>Ручной экспорт</label>
+            <div>
+              <button type="button" class="btn btn-sm btn-success" @click="exportExcel">Сохранить в Excel</button>
+              <p v-if="lastExport" class="vmix-broadcast-hint mb-0">Последний файл: {{ lastExport.filename }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-show="activeTab === 'mapping'" class="field-mapping-panel">
+          <h2>Маппинг полей vMix</h2>
+          <p class="field-mapping-panel__hint">
+            Выберите плашку (Input в vMix), задайте её имя и настройте поля внутри.
+            Источник данных — путь в Limetime; составные значения через «+».
+          </p>
+
+          <div class="field-mapping-plaque-tabs">
+            <button
+              v-for="plaque in fieldMappingPlaques"
+              :key="plaque.id"
+              type="button"
+              class="btn btn-sm btn-outline-light"
+              :class="{ active: plaque.id === fieldMappingSelectedPlaqueId }"
+              @click="fieldMappingSelectedPlaqueId = plaque.id"
+            >{{ plaque.label }}</button>
+          </div>
+
+          <template v-if="fieldMappingActivePlaque">
+            <div class="field-mapping-template">
+              <label :for="'plaque-template-' + fieldMappingActivePlaque.id">Название плашки (Input)</label>
+              <input
+                :id="'plaque-template-' + fieldMappingActivePlaque.id"
+                type="text"
+                class="form-control form-control-sm"
+                v-model="fieldMappingActivePlaque.templateValue"
+                placeholder="startlist{page}"
+              />
+            </div>
+
+            <div class="field-mapping-table-wrap">
+              <table class="field-mapping-table">
+                <thead>
+                  <tr>
+                    <th class="col-key">Поле</th>
+                    <th>Имя в vMix (SelectedName)</th>
+                    <th>Источник данных</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(field, fi) in fieldMappingActivePlaque.fields" :key="field.vmixConfigKey + '-' + fi">
+                    <td>
+                      <strong>{{ field.label }}</strong>
+                      <div v-if="field.hint" class="col-hint">{{ field.hint }}</div>
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        v-model="field.vmixFieldName"
+                        :disabled="field.editableVmixName === false"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        v-if="field.editableSource"
+                        type="text"
+                        class="form-control form-control-sm"
+                        v-model="field.sourcePath"
+                        :list="'field-map-sources-' + fieldMappingActivePlaque.id + '-' + fi"
+                        :placeholder="fieldMappingDefaults[field.key] || ''"
+                      />
+                      <span v-else class="col-hint">—</span>
+                      <datalist v-if="field.editableSource" :id="'field-map-sources-' + fieldMappingActivePlaque.id + '-' + fi">
+                        <option v-for="source in fieldMappingSourceFields" :key="source" :value="source"></option>
+                      </datalist>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <div class="field-mapping-actions">
+            <button type="button" class="btn btn-success" @click="saveFieldMapping" :disabled="fieldMappingSaving">
+              {{ fieldMappingSaving ? 'Сохранение…' : 'Сохранить' }}
+            </button>
+            <button type="button" class="btn btn-outline-secondary" @click="loadFieldMapping">
+              Сбросить изменения
+            </button>
+            <span
+              v-if="fieldMappingStatus"
+              class="field-mapping-status"
+              :class="{ error: fieldMappingStatusError }"
+            >{{ fieldMappingStatus }}</span>
+          </div>
+        </div>
+
+        <div v-show="activeTab === 'templates'" class="vmix-templates-panel">
+          <h2>vMix шаблоны</h2>
+          <p class="vmix-templates-panel__hint">
+            Имена Input (templates) и SelectedName-полей. Изменения применяются сразу, без перезапуска сервера.
+          </p>
+
+          <h3>Templates (Input)</h3>
+          <div class="vmix-templates-grid" v-for="key in vmixTemplateKeys" :key="key">
+            <label :for="'vmix-tpl-' + key">{{ vmixTemplateLabels[key] || key }}</label>
+            <input
+              :id="'vmix-tpl-' + key"
+              type="text"
+              class="form-control form-control-sm"
+              v-model="vmixTemplatesDraft[key]"
+            />
+          </div>
+
+          <h3>indexedFields</h3>
+          <div class="field-mapping-table-wrap">
+            <table class="field-mapping-table">
+              <thead>
+                <tr>
+                  <th>Ключ поля</th>
+                  <th>SelectedName</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, ri) in vmixIndexedFields" :key="'idx-' + ri">
+                  <td><input type="text" class="form-control form-control-sm" v-model="row.key" placeholder="num" /></td>
+                  <td><input type="text" class="form-control form-control-sm" v-model="row.value" placeholder="num {n}.Text" /></td>
+                  <td class="vmix-templates-row-actions">
+                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeIndexedField(ri)">×</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-light" @click="addIndexedField">+ Добавить поле</button>
+
+          <h3>singleFields</h3>
+          <div class="field-mapping-table-wrap">
+            <table class="field-mapping-table">
+              <thead>
+                <tr>
+                  <th>Ключ поля</th>
+                  <th>SelectedName</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, ri) in vmixSingleFields" :key="'single-' + ri">
+                  <td><input type="text" class="form-control form-control-sm" v-model="row.key" placeholder="class" /></td>
+                  <td><input type="text" class="form-control form-control-sm" v-model="row.value" placeholder="class.Text" /></td>
+                  <td class="vmix-templates-row-actions">
+                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeSingleField(ri)">×</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-light" @click="addSingleField">+ Добавить поле</button>
+
+          <div class="field-mapping-actions">
+            <button type="button" class="btn btn-success" @click="saveVmixTemplates" :disabled="vmixTemplatesSaving">
+              {{ vmixTemplatesSaving ? 'Сохранение…' : 'Сохранить' }}
+            </button>
+            <button type="button" class="btn btn-outline-secondary" @click="loadVmixTemplates">
+              Сбросить изменения
+            </button>
+            <span
+              v-if="vmixTemplatesStatus"
+              class="field-mapping-status"
+              :class="{ error: vmixTemplatesStatusError }"
+            >{{ vmixTemplatesStatus }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vmix-preview-backdrop" v-if="vmixPreviewOpen" @click.self="vmixPreviewOpen = false">
+    <div class="vmix-preview-modal" role="dialog" aria-labelledby="vmix-preview-title">
+      <div class="vmix-preview-header">
+        <h2 id="vmix-preview-title">vMix — превью полей</h2>
+        <button type="button" class="btn btn-sm btn-outline-secondary" @click="vmixPreviewOpen = false">Закрыть</button>
+      </div>
+      <div class="vmix-preview-toolbar">
+        <button type="button" class="btn btn-sm btn-secondary" @click="refreshVmixPreview" :disabled="vmixPreviewLoading">
+          {{ vmixPreviewLoading ? 'Загрузка…' : 'Обновить превью' }}
+        </button>
+      </div>
+      <p v-if="vmixPreviewError" class="vmix-preview-error">{{ vmixPreviewError }}</p>
+      <div class="vmix-preview-body">
+        <div class="vmix-preview-inputs">
+          <button
+            v-for="name in vmixPreviewInputNames"
+            :key="name"
+            type="button"
+            :class="{ active: name === vmixPreviewSelectedInput }"
+            @click="vmixPreviewSelectedInput = name"
+          >{{ name }}</button>
+          <div v-if="!vmixPreviewInputNames.length && !vmixPreviewLoading" class="vmix-preview-empty">
+            Нет данных
+          </div>
+        </div>
+        <div class="vmix-preview-fields">
+          <table v-if="vmixPreviewFieldRows.length">
+            <thead>
+              <tr>
+                <th>Поле</th>
+                <th>Значение</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in vmixPreviewFieldRows" :key="row.field">
+                <th>{{ row.field }}</th>
+                <td>{{ row.value || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else-if="vmixPreviewSelectedInput" class="vmix-preview-empty">Поля не заданы</div>
+          <div v-else class="vmix-preview-empty">Выберите Input слева</div>
+        </div>
       </div>
     </div>
   </div>

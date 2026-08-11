@@ -6,8 +6,12 @@
     "referer": "https://racetime.online/"
   },
   "pollIntervalMs": 5000,
+  "excelExportEnabled": false,
+  "laps": {
+    "mode": "all"
+  },
   "vmix": {
-    "host": "192.168.8.69",
+    "host": "localhost",
     "autoUpdate": true,
     "pageSize": 10,
     "maxPages": 6,
@@ -29,11 +33,11 @@
     "indexedFields": {
       "num": "num {n}.Text",
       "name": "name {n}.Text",
-      "age": "age{n}.Text",
+      "age": "age {n}.Text",
       "city": "city {n}.Text",
       "place": "place {n}.Text",
-      "result": "result{n}.Text",
-      "gap": "gap{n}.Text"
+      "result": "result {n}.Text",
+      "gap": "gap {n}.Text"
     },
     "startlistFields": [
       "num",
@@ -70,14 +74,21 @@
       "name 2",
       "name 3"
     ],
-    "indexedSpacedFrom": {
-      "place": 6
-    },
+    "indexedSpacedFrom": {},
     "startlistByCategory": {
       "women": "startlist{page}",
       "men": "startlist{page}",
       "junior_women": "startlist{page}",
       "junior_men": "startlist{page}"
+    },
+    "fieldMapping": {
+      "num": "number",
+      "name": "account.lastName+account.firstName",
+      "age": "account.age",
+      "city": "club",
+      "place": "position",
+      "result": "resultTime",
+      "gap": "leaderDifference"
     }
   },
   "activeEventId": "xcochamp2025",
@@ -99,7 +110,8 @@
           "id": "men",
           "name": "Кубок России Финал • Короткий круг • Мужчины",
           "stageGuid": "d8e38b29-6d90-4738-90f5-b18e6520981a",
-          "categoryGuid": "fcbdb5d8-0aa1-4b76-a51f-56dc7dc369f8"
+          "categoryGuid": "fcbdb5d8-0aa1-4b76-a51f-56dc7dc369f8",
+          "totalLaps": 6
         },
         {
           "id": "junior_women",

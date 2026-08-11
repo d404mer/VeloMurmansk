@@ -1,6 +1,8 @@
 (function () {
   const MAX_PLAQUES = 4;
+  const MAX_FOLLOWERS = MAX_PLAQUES - 1;
   const SHIFT_MS = 420;
+  const CLEAR_MS = 420;
   const POLL_MS = 1000;
   const DEMO_MS = 2500;
 
@@ -27,26 +29,72 @@
     document.documentElement.style.setProperty(cssVar, withUnit);
   }
 
+  const stackInner = document.getElementById('plaque-stack-inner');
+  const leaderSlot = document.getElementById('plaque-leader-slot');
   const track = document.getElementById('plaque-track');
+  const plaqueStack = document.getElementById('plaque-stack');
   const testPanel = document.getElementById('test-panel');
   const lapStatusEl = document.getElementById('lap-status');
-  const plaques = [];
+
+  let lapsMode = 'leader';
+  let leaderPlaque = null;
+  const followers = [];
   const eventQueue = [];
   const seenEventIds = new Set();
   let shifting = false;
+  let clearing = false;
+  let currentCompletedLap = null;
+  let leaderNumber = '';
   let demoTimer = null;
+  let demoLap = 1;
 
   const demoCarousel = [
-    { place: 3, number: 7, name: 'ВСЕВОЛОД БОЙЧУК', gap: '+2:46' },
-    { place: 1, number: 42, name: 'СОФИЯ РОСТОВЩИКОВА', gap: '' },
-    { place: 5, number: 18, name: 'ИВАН ПЕТРОВ', gap: '+1:12' },
+    { place: 1, number: 42, name: 'СОФИЯ РОСТОВЩИКОВА', gap: '', splitTime: '12:34.5' },
     { place: 2, number: 33, name: 'АННА СМИРНОВА', gap: '+0:45' },
-    { place: 8, number: 91, name: 'ДМИТРИЙ КОЗЛОВ', gap: '+3:20' },
+    { place: 3, number: 7, name: 'ВСЕВОЛОД БОЙЧУК', gap: '+2:46' },
+    { place: 5, number: 18, name: 'ИВАН ПЕТРОВ', gap: '+1:12' },
     { place: 4, number: 55, name: 'МАРИЯ ВОЛКОВА', gap: '+1:58' },
+    { place: 8, number: 91, name: 'ДМИТРИЙ КОЗЛОВ', gap: '+3:20' },
     { place: 6, number: 12, name: 'АЛЕКСЕЙ НОВИКОВ', gap: '+2:05' },
     { place: 7, number: 64, name: 'ЕКАТЕРИНА ЛЕБЕДЕВА', gap: '+2:30' },
   ];
   let demoIndex = 0;
+
+  function isLeaderMode() {
+    return lapsMode !== 'all';
+  }
+
+  function maxVisibleFollowers() {
+    return isLeaderMode() ? MAX_FOLLOWERS : MAX_PLAQUES;
+  }
+
+  function isLeaderEvent(event) {
+    if (!isLeaderMode()) return false;
+    if (Number(event.place) === 1) return true;
+    if (leaderNumber !== '' && String(event.number) === String(leaderNumber)) return true;
+    return false;
+  }
+
+  function gapField(event) {
+    if (!isLeaderMode()) {
+      return event.gap ?? event.splitTime ?? '00:00';
+    }
+    if (isLeaderEvent(event)) {
+      return event.splitTime || event.gap || '00:00';
+    }
+    return event.gap ?? '00:00';
+  }
+
+  function applyLapsMode(mode) {
+    const nextMode = mode === 'all' ? 'all' : 'leader';
+    if (lapsMode === nextMode) return;
+    lapsMode = nextMode;
+    if (plaqueStack) {
+      plaqueStack.classList.toggle('plaque-stack--all-mode', nextMode === 'all');
+    }
+    clearPlaques();
+    seenEventIds.clear();
+  }
 
   function createPlaqueEl(event) {
     const el = document.createElement('div');
@@ -55,9 +103,17 @@
       `<div class="plaque__place"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(event.place ?? ''))}</span></span></div>` +
       `<div class="plaque__number"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(event.number ?? ''))}</span></span></div>` +
       `<div class="plaque__name"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(event.name ?? ''))}</span></span></div>` +
-      `<div class="plaque__gap"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(event.gap ?? ''))}</span></span></div>`;
+      `<div class="plaque__gap"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(gapField(event)))}</span></span></div>`;
     fitPlaqueText(el);
     return el;
+  }
+
+  function fillPlaqueEl(el, event) {
+    const fields = [event.place, event.number, event.name, gapField(event)];
+    el.querySelectorAll('.plaque__fit').forEach((textEl, index) => {
+      textEl.textContent = fields[index] == null ? '' : String(fields[index]);
+    });
+    fitPlaqueText(el);
   }
 
   function fitPlaqueText(plaqueEl) {
@@ -90,57 +146,15 @@
     track.style.transition = '';
   }
 
-  function finishShift() {
-    const removed = plaques.shift();
-    if (removed) removed.el.remove();
-    resetTrackPosition();
-    shifting = false;
-    processQueue();
+  function resetStackInner() {
+    stackInner.style.transition = 'none';
+    stackInner.classList.remove('plaque-stack-inner--clear');
+    stackInner.style.transform = '';
+    void stackInner.offsetHeight;
+    stackInner.style.transition = '';
   }
 
-  function shiftPlaquesUp(el, entry) {
-    shifting = true;
-    let finished = false;
-
-    function completeShift() {
-      if (finished) return;
-      finished = true;
-      finishShift();
-    }
-
-    plaques[0].el.classList.add('plaque--leaving-top');
-    track.appendChild(el);
-    plaques.push(entry);
-
-    requestAnimationFrame(() => {
-      track.classList.add('plaque-track--shift');
-    });
-
-    track.addEventListener(
-      'transitionend',
-      (e) => {
-        if (e.target !== track) return;
-        completeShift();
-      },
-      { once: true }
-    );
-
-    setTimeout(completeShift, SHIFT_MS + 80);
-  }
-
-  function appendPlaque(event) {
-    const el = createPlaqueEl(event);
-    const entry = { el, id: event.id };
-
-    if (plaques.length >= MAX_PLAQUES) {
-      el.classList.add('plaque--instant');
-      shiftPlaquesUp(el, entry);
-      return;
-    }
-
-    track.appendChild(el);
-    plaques.push(entry);
-
+  function revealPlaque(el) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         el.classList.add('plaque--visible');
@@ -148,51 +162,271 @@
     });
   }
 
+  function waitTransition(el, timeoutMs) {
+    return new Promise((resolve) => {
+      let done = false;
+      function complete() {
+        if (done) return;
+        done = true;
+        resolve();
+      }
+      if (!el) {
+        complete();
+        return;
+      }
+      el.addEventListener(
+        'transitionend',
+        (e) => {
+          if (e.target !== el) return;
+          complete();
+        },
+        { once: true }
+      );
+      setTimeout(complete, timeoutMs + 80);
+    });
+  }
+
+  function appendLeader(event) {
+    if (leaderPlaque) {
+      leaderPlaque.id = event.id;
+      fillPlaqueEl(leaderPlaque.el, event);
+      return;
+    }
+
+    const el = createPlaqueEl(event);
+    leaderPlaque = { el, id: event.id, isLeader: true };
+    leaderSlot.appendChild(el);
+    revealPlaque(el);
+  }
+
+  function finishFollowerShift(removedEntry) {
+    if (removedEntry) {
+      const idx = followers.indexOf(removedEntry);
+      if (idx >= 0) followers.splice(idx, 1);
+      removedEntry.el.remove();
+    }
+    resetTrackPosition();
+    shifting = false;
+    processQueue();
+  }
+
+  function shiftOldestFollower(el, entry) {
+    shifting = true;
+    const oldest = followers[0];
+
+    if (!oldest) {
+      track.appendChild(el);
+      followers.push(entry);
+      shifting = false;
+      revealPlaque(el);
+      processQueue();
+      return;
+    }
+
+    el.classList.add('plaque--instant', 'plaque--visible');
+    track.appendChild(el);
+    followers.push(entry);
+
+    requestAnimationFrame(() => {
+      track.classList.add('plaque-track--shift');
+    });
+
+    waitTransition(track, SHIFT_MS).then(() => {
+      finishFollowerShift(oldest);
+    });
+  }
+
+  function appendFollower(event) {
+    const el = createPlaqueEl(event);
+    const entry = { el, id: event.id, isLeader: false };
+
+    if (followers.length >= maxVisibleFollowers()) {
+      shiftOldestFollower(el, entry);
+      return;
+    }
+
+    track.appendChild(el);
+    followers.push(entry);
+    revealPlaque(el);
+  }
+
+  function appendPlaque(event) {
+    if (!isLeaderMode()) {
+      appendFollower(event);
+      return;
+    }
+    if (isLeaderEvent(event)) {
+      appendLeader(event);
+    } else {
+      appendFollower(event);
+    }
+  }
+
   function enqueuePlaque(event) {
     if (!event || !event.id) return;
     if (seenEventIds.has(event.id)) return;
+
+    if (currentCompletedLap != null) {
+      const lapNum = Number(event.lapNumber);
+      if (Number.isFinite(lapNum) && lapNum !== Number(currentCompletedLap)) {
+        seenEventIds.add(event.id);
+        return;
+      }
+    }
+
     seenEventIds.add(event.id);
     eventQueue.push(event);
     processQueue();
   }
 
   function processQueue() {
-    if (shifting || !eventQueue.length) return;
-    appendPlaque(eventQueue.shift());
-    if (!shifting && eventQueue.length && plaques.length < MAX_PLAQUES) {
-      processQueue();
+    if (shifting || clearing || !eventQueue.length) return;
+
+    const event = eventQueue.shift();
+    appendPlaque(event);
+
+    if (!shifting && !clearing && eventQueue.length) {
+      const next = eventQueue[0];
+      if (isLeaderEvent(next) || followers.length < maxVisibleFollowers()) {
+        processQueue();
+      }
     }
+  }
+
+  function removeAllPlaquesNow() {
+    resetTrackPosition();
+    resetStackInner();
+    leaderPlaque = null;
+    followers.length = 0;
+    if (leaderSlot) leaderSlot.replaceChildren();
+    if (track) track.replaceChildren();
+  }
+
+  function clearAllAnimated() {
+    return new Promise((resolve) => {
+      if (!leaderPlaque && !followers.length) {
+        resolve();
+        return;
+      }
+
+      clearing = true;
+      eventQueue.length = 0;
+      shifting = false;
+      resetTrackPosition();
+
+      const row =
+        parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--plaque-row-height')
+        ) || 33;
+      const gap =
+        parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--plaque-stack-gap')
+        ) || 7;
+      const count = (isLeaderMode() && leaderPlaque ? 1 : 0) + followers.length;
+      const distance = count * row + Math.max(0, count - 1) * gap;
+
+      let finished = false;
+      function complete() {
+        if (finished) return;
+        finished = true;
+        removeAllPlaquesNow();
+        clearing = false;
+        resolve();
+      }
+
+      requestAnimationFrame(() => {
+        stackInner.style.transform = `translateY(${-distance}px)`;
+      });
+
+      waitTransition(stackInner, CLEAR_MS).then(complete);
+    });
   }
 
   function clearPlaques() {
-    if (demoTimer) clearInterval(demoTimer);
+    if (demoTimer) {
+      clearInterval(demoTimer);
+      demoTimer = null;
+    }
     shifting = false;
+    clearing = false;
     eventQueue.length = 0;
-    seenEventIds.clear();
-    resetTrackPosition();
-    while (plaques.length) {
-      const entry = plaques.pop();
-      entry.el.remove();
+    removeAllPlaquesNow();
+  }
+
+  async function handleLapState(lapState) {
+    if (!lapState) return;
+
+    if (lapState.leaderNumber != null && lapState.leaderNumber !== '') {
+      leaderNumber = String(lapState.leaderNumber);
+    }
+
+    const completed = Number(lapState.completedLap);
+    if (!Number.isFinite(completed)) return;
+
+    if (currentCompletedLap == null) {
+      currentCompletedLap = completed;
+      return;
+    }
+
+    if (completed > currentCompletedLap) {
+      currentCompletedLap = completed;
+      await clearAllAnimated();
+      processQueue();
+    } else if (completed < currentCompletedLap) {
+      currentCompletedLap = completed;
+      await clearAllAnimated();
+      seenEventIds.clear();
     }
   }
 
-  function nextDemoEvent() {
-    const item = demoCarousel[demoIndex];
-    demoIndex = (demoIndex + 1) % demoCarousel.length;
+  function nextDemoEvent(forceLeader) {
+    let item;
+    if (forceLeader) {
+      item = demoCarousel.find((row) => Number(row.place) === 1) || demoCarousel[0];
+    } else {
+      item = demoCarousel[demoIndex];
+      demoIndex = (demoIndex + 1) % demoCarousel.length;
+      if (Number(item.place) === 1 && leaderPlaque) {
+        item = demoCarousel[demoIndex];
+        demoIndex = (demoIndex + 1) % demoCarousel.length;
+      }
+    }
+
     return {
       id: `demo-${Date.now()}-${demoIndex}-${Math.random().toString(36).slice(2, 7)}`,
+      lapNumber: demoLap,
       ...item,
     };
   }
 
   function startDemo() {
-    for (let i = 0; i < MAX_PLAQUES; i++) {
-      const event = nextDemoEvent();
+    currentCompletedLap = demoLap;
+    leaderNumber = '42';
+    const leader = nextDemoEvent(true);
+    seenEventIds.add(leader.id);
+    appendPlaque(leader);
+
+    for (let i = 0; i < 3; i++) {
+      const event = nextDemoEvent(false);
+      if (Number(event.place) === 1) continue;
       seenEventIds.add(event.id);
       appendPlaque(event);
     }
+
+    let tick = 0;
     demoTimer = setInterval(() => {
-      enqueuePlaque(nextDemoEvent());
+      tick += 1;
+      if (tick % 5 === 0) {
+        demoLap += 1;
+        currentCompletedLap = demoLap;
+        clearAllAnimated().then(() => {
+          const leaderEvent = nextDemoEvent(true);
+          seenEventIds.add(leaderEvent.id);
+          enqueuePlaque(leaderEvent);
+        });
+        return;
+      }
+      enqueuePlaque(nextDemoEvent(false));
     }, DEMO_MS);
   }
 
@@ -221,9 +455,16 @@
         const data = await res.json();
         if (!data.ok || !Array.isArray(data.events)) return;
 
+        if (data.lapsMode) {
+          applyLapsMode(data.lapsMode);
+        }
+
         if (data.lapState) {
           updateLapStatus(data.lapState);
+          await handleLapState(data.lapState);
         }
+
+        if (clearing) return;
 
         const sorted = [...data.events].sort((a, b) => {
           const ta = new Date(a.at || 0).getTime();
@@ -252,7 +493,7 @@
   }
 
   async function simulateRandom() {
-    const event = nextDemoEvent();
+    const event = nextDemoEvent(false);
     await fetch('/api/laps/simulate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -261,6 +502,8 @@
         number: event.number,
         name: event.name,
         gap: event.gap,
+        splitTime: event.splitTime,
+        lapNumber: currentCompletedLap || event.lapNumber,
         categoryId: categoryId || undefined,
       }),
     });
