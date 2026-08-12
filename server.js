@@ -164,6 +164,10 @@ function isExcelExportEnabled() {
   return config.excelExportEnabled !== false;
 }
 
+function isFlowerCeremony() {
+  return config.vmix?.flowerCeremony !== false;
+}
+
 function broadcastLapEvent(event) {
   if (dataFrozen) return;
   const payload = `data: ${JSON.stringify(event)}\n\n`;
@@ -402,6 +406,7 @@ app.get('/api/config', (req, res) => {
     totalLaps: getCategoryTotalLaps(getActiveCategory(event)),
     lapsMode: getLapsMode(),
     excelExportEnabled: isExcelExportEnabled(),
+    flowerCeremony: isFlowerCeremony(),
   });
 });
 
@@ -465,6 +470,20 @@ app.post('/api/excel-export', (req, res) => {
   config.excelExportEnabled = enabled;
   saveConfig();
   res.json({ ok: true, excelExportEnabled: isExcelExportEnabled() });
+});
+
+app.post('/api/flower-ceremony', (req, res) => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
+    return;
+  }
+  if (!config.vmix) config.vmix = {};
+  config.vmix.flowerCeremony = enabled;
+  saveConfig();
+  vmixPusher.resetCache();
+  pushResultsToVmix(getDisplayData());
+  res.json({ ok: true, flowerCeremony: isFlowerCeremony() });
 });
 
 app.post('/updateData', async (req, res) => {

@@ -128,6 +128,7 @@
     }
     .winners-panel h2 { font-size: 16px; margin: 0 0 8px; color: #fff; }
     .winners-panel__hint { margin: 0 0 16px; font-size: 12px; color: #adb5bd; }
+    .winners-panel__ceremony { margin: 0 0 4px; }
     .winners-panel__actions {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -506,6 +507,24 @@
         <div v-show="activeTab === 'winners'" class="winners-panel">
           <h2>Победители</h2>
           <p class="winners-panel__hint">Клик — отправить соответствующую страницу в vMix.</p>
+          <div class="vmix-broadcast-row winners-panel__ceremony">
+            <label for="flower-ceremony-toggle">Цветочное награждение</label>
+            <div class="form-check form-switch">
+              <input
+                id="flower-ceremony-toggle"
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+                :checked="flowerCeremony"
+                @change="saveFlowerCeremony($event.target.checked)"
+              />
+            </div>
+          </div>
+          <p class="winners-panel__hint mb-3">
+            {{ flowerCeremony
+              ? 'Без места в class (только категория)'
+              : 'С местом в class («N Место»)' }}
+          </p>
           <div class="winners-panel__actions">
             <button type="button" class="btn btn-primary" @click='vmixCommand("winner1")'>WINNER 1</button>
             <button type="button" class="btn btn-primary" @click='vmixCommand("winner2")'>WINNER 2</button>
@@ -589,6 +608,7 @@
                         class="form-control form-control-sm"
                         v-model="field.vmixFieldName"
                         :disabled="field.editableVmixName === false"
+                        @input="syncSharedFieldVmixName(field)"
                       />
                     </td>
                     <td>
@@ -599,6 +619,7 @@
                         v-model="field.sourcePath"
                         :list="'field-map-sources-' + fieldMappingActivePlaque.id + '-' + fi"
                         :placeholder="fieldMappingDefaults[field.key] || ''"
+                        @input="syncSharedFieldSource(field)"
                       />
                       <span v-else class="col-hint">—</span>
                       <datalist v-if="field.editableSource" :id="'field-map-sources-' + fieldMappingActivePlaque.id + '-' + fi">

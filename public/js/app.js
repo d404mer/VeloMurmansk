@@ -22,6 +22,7 @@ Vue.createApp({
       totalLaps: 8,
       lapsMode: 'leader',
       excelExportEnabled: true,
+      flowerCeremony: true,
       lapState: {
         completedLap: 0,
         currentLap: 1,
@@ -186,6 +187,32 @@ Vue.createApp({
         });
     },
 
+    /** fieldMapping / имена полей общие — держим копии на всех плашках одинаковыми */
+    syncSharedFieldSource(field) {
+      if (!field?.editableSource || !field.key) return;
+      const value = field.sourcePath;
+      for (const plaque of this.fieldMappingPlaques) {
+        for (const other of plaque.fields || []) {
+          if (other.editableSource && other.key === field.key) other.sourcePath = value;
+        }
+      }
+    },
+
+    syncSharedFieldVmixName(field) {
+      if (!field || field.editableVmixName === false) return;
+      const value = field.vmixFieldName;
+      const storage = field.vmixStorage;
+      const configKey = field.vmixConfigKey || field.key;
+      for (const plaque of this.fieldMappingPlaques) {
+        for (const other of plaque.fields || []) {
+          if (other.editableVmixName === false) continue;
+          if (other.vmixStorage === storage && (other.vmixConfigKey || other.key) === configKey) {
+            other.vmixFieldName = value;
+          }
+        }
+      }
+    },
+
     saveFieldMapping() {
       this.fieldMappingSaving = true;
       this.fieldMappingStatus = '';
@@ -347,6 +374,18 @@ Vue.createApp({
         });
     },
 
+    saveFlowerCeremony(enabled) {
+      const previous = this.flowerCeremony;
+      this.flowerCeremony = !!enabled;
+      return axios
+        .post('/api/flower-ceremony', { enabled: this.flowerCeremony })
+        .catch((err) => {
+          this.flowerCeremony = previous;
+          this.lastError =
+            err.response?.data?.error || err.message || 'Ошибка сохранения режима награждения';
+        });
+    },
+
     simulateLeaderLap() {
       axios
         .post('/api/laps/simulate-leader', { categoryId: this.activeCategoryId })
@@ -424,6 +463,9 @@ Vue.createApp({
         }
         if (res.data.excelExportEnabled != null) {
           this.excelExportEnabled = !!res.data.excelExportEnabled;
+        }
+        if (res.data.flowerCeremony != null) {
+          this.flowerCeremony = !!res.data.flowerCeremony;
         }
       });
     },

@@ -8,11 +8,12 @@
   "pollIntervalMs": 5000,
   "excelExportEnabled": false,
   "laps": {
-    "mode": "all"
+    "mode": "leader"
   },
   "vmix": {
     "host": "localhost",
     "autoUpdate": true,
+    "flowerCeremony": true,
     "pageSize": 10,
     "maxPages": 6,
     "templates": {
@@ -59,8 +60,8 @@
       "class1": "class1.Text",
       "name1": "name1.Text",
       "name 1": "name 1.Text",
-      "name 2": "name 2.Text",
-      "name 3": "name 3.Text",
+      "name 2": "name 1.Text",
+      "name 3": "name 1.Text",
       "leaderName": "name 1.Text",
       "lap": "lap.Text"
     },
@@ -92,7 +93,7 @@
     }
   },
   "activeEventId": "xcochamp2025",
-  "activeCategoryId": "women",
+  "activeCategoryId": "men",
   "events": [
     {
       "id": "xcochamp2025",
