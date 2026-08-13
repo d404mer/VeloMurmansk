@@ -160,12 +160,37 @@ function getLapsMode() {
   return config.laps?.mode === 'all' ? 'all' : 'leader';
 }
 
+const DEFAULT_LAPS_FONTS = { base: 18, name: 18, number: 13 };
+
+function clampFontSize(value, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(48, Math.max(8, Math.round(n)));
+}
+
+function getLapsFonts() {
+  const fonts = config.laps?.fonts || {};
+  return {
+    base: clampFontSize(fonts.base, DEFAULT_LAPS_FONTS.base),
+    name: clampFontSize(fonts.name, DEFAULT_LAPS_FONTS.name),
+    number: clampFontSize(fonts.number, DEFAULT_LAPS_FONTS.number),
+  };
+}
+
+function isHideTeamWord() {
+  return config.laps?.hideTeamWord === true;
+}
+
 function isExcelExportEnabled() {
   return config.excelExportEnabled !== false;
 }
 
 function isFlowerCeremony() {
   return config.vmix?.flowerCeremony !== false;
+}
+
+function isBreakAfterBullet() {
+  return config.vmix?.breakAfterBullet !== false;
 }
 
 function broadcastLapEvent(event) {
@@ -198,6 +223,67 @@ function participantToOverlayName(participant) {
     return `${parts.slice(1).join(' ')} ${parts[0]}`.toUpperCase();
   }
   return String(participant || '').toUpperCase();
+}
+
+function overlayNameFromRow(row) {
+  if (!row) return '';
+  const account = row.raw?.account;
+  if (account) {
+    const first = account.firstName || '';
+    const last = account.lastName || '';
+    return `${first} ${last}`.trim().toUpperCase();
+  }
+  return participantToOverlayName(row.участник || row.participant || '');
+}
+
+function rowToPlaqueFields(row) {
+  if (!row) return null;
+  return {
+    place: row.место ?? row.place ?? '',
+    number: row.номер ?? row.number ?? '',
+    name: overlayNameFromRow(row),
+    gap: row.доЛидера ?? row.gapToLeader ?? '',
+    splitTime: row.результат ?? row.result ?? '',
+  };
+}
+
+function getAthletesForCategory(categoryId) {
+  const id = resolveCategoryId(categoryId);
+  if (id === config.activeCategoryId) {
+    const data = getDisplayData();
+    if (data.displayList?.length) return data.displayList;
+    if (data.startList?.length) return data.startList;
+    return [];
+  }
+  const cached = lastCategoryResults.get(id);
+  if (!cached) return [];
+  if (cached.displayList?.length) return cached.displayList;
+  if (cached.startList?.length) return cached.startList;
+  return [];
+}
+
+function pickLeaderPlaqueFields(categoryId) {
+  const id = resolveCategoryId(categoryId);
+  if (id === config.activeCategoryId) {
+    const leaders = getDisplayData().leaders || [];
+    if (leaders[0]) return rowToPlaqueFields(leaders[0]);
+  } else {
+    const cached = lastCategoryResults.get(id);
+    if (cached?.leaders?.[0]) return rowToPlaqueFields(cached.leaders[0]);
+  }
+
+  const athletes = getAthletesForCategory(id);
+  const byPlace = athletes.find((row) => Number(row.место ?? row.place) === 1);
+  return rowToPlaqueFields(byPlace || athletes[0] || null);
+}
+
+function pickRandomPlaqueFields(categoryId) {
+  const athletes = getAthletesForCategory(categoryId);
+  if (!athletes.length) return null;
+  const nonLeaders = athletes.filter((row) => Number(row.место ?? row.place) !== 1);
+  const pool = nonLeaders.length ? nonLeaders : athletes;
+  const row = pool[Math.floor(Math.random() * pool.length)];
+  return rowToPlaqueFields(row);
 }
 
 function lapDetailToEvent(categoryId, row, index) {
@@ -405,8 +491,11 @@ app.get('/api/config', (req, res) => {
     lapState: lapTracker.getLapState(config.activeCategoryId),
     totalLaps: getCategoryTotalLaps(getActiveCategory(event)),
     lapsMode: getLapsMode(),
+    lapsFonts: getLapsFonts(),
+    hideTeamWord: isHideTeamWord(),
     excelExportEnabled: isExcelExportEnabled(),
     flowerCeremony: isFlowerCeremony(),
+    breakAfterBullet: isBreakAfterBullet(),
   });
 });
 
@@ -486,6 +575,20 @@ app.post('/api/flower-ceremony', (req, res) => {
   res.json({ ok: true, flowerCeremony: isFlowerCeremony() });
 });
 
+app.post('/api/break-after-bullet', (req, res) => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
+    return;
+  }
+  if (!config.vmix) config.vmix = {};
+  config.vmix.breakAfterBullet = enabled;
+  saveConfig();
+  vmixPusher.resetCache();
+  pushResultsToVmix(getDisplayData());
+  res.json({ ok: true, breakAfterBullet: isBreakAfterBullet() });
+});
+
 app.post('/updateData', async (req, res) => {
   await refreshData();
   res.json({ ok: true, mode: getDisplayData().mode, count: getDisplayData().displayList.length });
@@ -530,6 +633,8 @@ app.get('/api/laps/recent', (req, res) => {
     ok: true,
     dataFrozen,
     lapsMode: getLapsMode(),
+    fonts: getLapsFonts(),
+    hideTeamWord: isHideTeamWord(),
     lapState: lapTracker.getLapState(categoryId),
     events: dataFrozen ? [] : lapTracker.getRecentEvents(categoryId, limit),
   });
@@ -543,6 +648,8 @@ app.get('/api/laps/status', (req, res) => {
     dataFrozen,
     categoryId,
     lapsMode: getLapsMode(),
+    fonts: getLapsFonts(),
+    hideTeamWord: isHideTeamWord(),
     lapState: lapTracker.getLapState(categoryId),
     lastEvent: events.length ? events[events.length - 1] : null,
   });
@@ -560,13 +667,51 @@ app.post('/api/laps/mode', (req, res) => {
   res.json({ ok: true, lapsMode: getLapsMode() });
 });
 
+app.post('/api/laps/hide-team-word', (req, res) => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
+    return;
+  }
+  if (!config.laps) config.laps = {};
+  config.laps.hideTeamWord = enabled;
+  saveConfig();
+  res.json({ ok: true, hideTeamWord: isHideTeamWord() });
+});
+
+app.post('/api/laps/fonts', (req, res) => {
+  const body = req.body || {};
+  const current = getLapsFonts();
+  const next = {
+    base: body.base != null ? clampFontSize(body.base, current.base) : current.base,
+    name: body.name != null ? clampFontSize(body.name, current.name) : current.name,
+    number: body.number != null ? clampFontSize(body.number, current.number) : current.number,
+  };
+  if (!config.laps) config.laps = {};
+  config.laps.fonts = next;
+  saveConfig();
+  res.json({ ok: true, fonts: getLapsFonts() });
+});
+
 app.post('/api/laps/simulate-leader', (req, res) => {
   if (dataFrozen) {
     res.status(409).json({ ok: false, error: 'Data is frozen' });
     return;
   }
   const categoryId = resolveCategoryId(req.body?.categoryId);
-  const result = lapTracker.simulateLeaderLap(categoryId, req.body || {}, getLapsMode());
+  const body = { ...(req.body || {}) };
+  if (!body.name && !body.number && !body.leaderName && !body.leaderNumber) {
+    const fromCategory = pickLeaderPlaqueFields(categoryId);
+    if (!fromCategory) {
+      res.status(400).json({
+        ok: false,
+        error: 'Нет участников загруженной категории — проверьте настройки и обновите данные',
+      });
+      return;
+    }
+    Object.assign(body, fromCategory);
+  }
+  const result = lapTracker.simulateLeaderLap(categoryId, body, getLapsMode());
   handleLapPollResult(categoryId, result);
   res.json({
     ok: true,
@@ -615,7 +760,23 @@ app.post('/api/laps/simulate', (req, res) => {
     return;
   }
   const categoryId = resolveCategoryId(req.body?.categoryId);
-  const event = lapTracker.addManualEvent(categoryId, req.body || {}, getLapsMode());
+  const body = { ...(req.body || {}) };
+  if (!body.name && !body.number) {
+    const fromCategory = pickRandomPlaqueFields(categoryId);
+    if (!fromCategory) {
+      res.status(400).json({
+        ok: false,
+        error: 'Нет участников загруженной категории — проверьте настройки и обновите данные',
+      });
+      return;
+    }
+    Object.assign(body, fromCategory);
+  }
+  if (body.lapNumber == null || body.lapNumber === '') {
+    const lapState = lapTracker.getLapState(categoryId);
+    body.lapNumber = lapState.completedLap || 1;
+  }
+  const event = lapTracker.addManualEvent(categoryId, body, getLapsMode());
   broadcastLapEvent(event);
   res.json({ ok: true, event });
 });

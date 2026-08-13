@@ -341,7 +341,7 @@
             <div class="controls__label">Ссылки и инструменты</div>
             <a href="/config" class="btn btn-sm btn-outline-light" title="Настройки события и категорий">Настройки</a>
             <a href="/laps" class="btn btn-sm btn-outline-light" target="_blank" title="Browser Source плашек отсечек">Плашки кругов</a>
-            <a href="/laps?test=1" class="btn btn-sm btn-outline-secondary" target="_blank" title="Тестовая панель плашек">Тест плашек</a>
+            <a :href="lapsTestUrl" class="btn btn-sm btn-outline-secondary" target="_blank" title="Тестовая панель плашек">Тест плашек</a>
             <button type="button" class="btn btn-sm btn-outline-info" @click="openVmixPreview" title="Превью полей vMix без отправки">Превью vMix</button>
           </div>
         </div>
@@ -439,7 +439,62 @@
                 </select>
               </div>
             </div>
+            <div>
+              <div class="lap-panel__label">Скрывать «Команда»</div>
+              <div class="lap-panel__value">
+                <div class="form-check form-switch mb-0">
+                  <input
+                    id="hide-team-word-toggle"
+                    class="form-check-input"
+                    type="checkbox"
+                    role="switch"
+                    :checked="hideTeamWord"
+                    @change="saveHideTeamWord($event.target.checked)"
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="lap-panel__label">Шрифт ФИО (px)</div>
+              <div class="lap-panel__value lap-panel__total-laps">
+                <input
+                  type="number"
+                  min="8"
+                  max="48"
+                  class="form-control form-control-sm d-inline-block w-auto"
+                  v-model.number="lapsFonts.name"
+                  @change="saveLapsFonts"
+                />
+              </div>
+            </div>
+            <div>
+              <div class="lap-panel__label">Шрифт номера (px)</div>
+              <div class="lap-panel__value lap-panel__total-laps">
+                <input
+                  type="number"
+                  min="8"
+                  max="48"
+                  class="form-control form-control-sm d-inline-block w-auto"
+                  v-model.number="lapsFonts.number"
+                  @change="saveLapsFonts"
+                />
+              </div>
+            </div>
+            <div>
+              <div class="lap-panel__label">Шрифт место/время (px)</div>
+              <div class="lap-panel__value lap-panel__total-laps">
+                <input
+                  type="number"
+                  min="8"
+                  max="48"
+                  class="form-control form-control-sm d-inline-block w-auto"
+                  v-model.number="lapsFonts.base"
+                  @change="saveLapsFonts"
+                />
+              </div>
+            </div>
           </div>
+          <p class="lap-panel__hint">Размеры шрифта и «Команда» сразу применяются на /laps (без обновления страницы).</p>
           <div class="lap-panel__actions">
             <button type="button" class="btn btn-sm btn-info" @click="simulateLeaderLap" :disabled="dataFrozen">
               +1 круг (тест)
@@ -548,6 +603,24 @@
               />
             </div>
           </div>
+          <div class="vmix-broadcast-row">
+            <label for="break-after-bullet-toggle">Перенос после первой •</label>
+            <div class="form-check form-switch">
+              <input
+                id="break-after-bullet-toggle"
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+                :checked="breakAfterBullet"
+                @change="saveBreakAfterBullet($event.target.checked)"
+              />
+            </div>
+          </div>
+          <p class="vmix-broadcast-hint">
+            {{ breakAfterBullet
+              ? 'В class: «Эстафета •» затем новая строка'
+              : 'В class: одна строка без переноса' }}
+          </p>
           <div class="vmix-broadcast-row">
             <label>Ручной экспорт</label>
             <div>

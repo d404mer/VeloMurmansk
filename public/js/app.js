@@ -21,8 +21,11 @@ Vue.createApp({
       resultCount: 0,
       totalLaps: 8,
       lapsMode: 'leader',
+      lapsFonts: { base: 18, name: 18, number: 13 },
+      hideTeamWord: false,
       excelExportEnabled: true,
       flowerCeremony: true,
+      breakAfterBullet: true,
       lapState: {
         completedLap: 0,
         currentLap: 1,
@@ -67,6 +70,13 @@ Vue.createApp({
         ? `?categoryId=${encodeURIComponent(this.activeCategoryId)}`
         : '';
       return `/laps${q}`;
+    },
+    lapsTestUrl() {
+      const parts = ['test=1'];
+      if (this.activeCategoryId) {
+        parts.push(`categoryId=${encodeURIComponent(this.activeCategoryId)}`);
+      }
+      return `/laps?${parts.join('&')}`;
     },
     modeLabel() {
       if (this.mode === 'live') return 'Промежуточные (live)';
@@ -386,6 +396,18 @@ Vue.createApp({
         });
     },
 
+    saveBreakAfterBullet(enabled) {
+      const previous = this.breakAfterBullet;
+      this.breakAfterBullet = !!enabled;
+      return axios
+        .post('/api/break-after-bullet', { enabled: this.breakAfterBullet })
+        .catch((err) => {
+          this.breakAfterBullet = previous;
+          this.lastError =
+            err.response?.data?.error || err.message || 'Ошибка сохранения переноса после •';
+        });
+    },
+
     simulateLeaderLap() {
       axios
         .post('/api/laps/simulate-leader', { categoryId: this.activeCategoryId })
@@ -437,6 +459,39 @@ Vue.createApp({
         });
     },
 
+    saveLapsFonts() {
+      const previous = { ...this.lapsFonts };
+      const payload = {
+        base: Number(this.lapsFonts.base),
+        name: Number(this.lapsFonts.name),
+        number: Number(this.lapsFonts.number),
+      };
+      return axios
+        .post('/api/laps/fonts', payload)
+        .then((res) => {
+          if (res.data?.fonts) {
+            this.lapsFonts = { ...res.data.fonts };
+          }
+        })
+        .catch((err) => {
+          this.lapsFonts = previous;
+          this.lastError =
+            err.response?.data?.error || err.message || 'Ошибка сохранения размера шрифта';
+        });
+    },
+
+    saveHideTeamWord(enabled) {
+      const previous = this.hideTeamWord;
+      this.hideTeamWord = !!enabled;
+      return axios
+        .post('/api/laps/hide-team-word', { enabled: this.hideTeamWord })
+        .catch((err) => {
+          this.hideTeamWord = previous;
+          this.lastError =
+            err.response?.data?.error || err.message || 'Ошибка сохранения настройки «Команда»';
+        });
+    },
+
     loadConfig() {
       return axios.get('/api/config').then((res) => {
         const event = res.data.events.find((e) => e.id === res.data.activeEventId);
@@ -461,11 +516,20 @@ Vue.createApp({
         if (res.data.lapsMode) {
           this.lapsMode = res.data.lapsMode;
         }
+        if (res.data.lapsFonts) {
+          this.lapsFonts = { ...res.data.lapsFonts };
+        }
+        if (res.data.hideTeamWord != null) {
+          this.hideTeamWord = !!res.data.hideTeamWord;
+        }
         if (res.data.excelExportEnabled != null) {
           this.excelExportEnabled = !!res.data.excelExportEnabled;
         }
         if (res.data.flowerCeremony != null) {
           this.flowerCeremony = !!res.data.flowerCeremony;
+        }
+        if (res.data.breakAfterBullet != null) {
+          this.breakAfterBullet = !!res.data.breakAfterBullet;
         }
       });
     },

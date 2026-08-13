@@ -25,6 +25,9 @@
   --plaque-inner-gap: 7px;
   --plaque-stack-gap: 7px;
   --plaque-scroll-ms: 0.4s;
+  --plaque-font-size: 18px;
+  --plaque-font-size-name: 18px;
+  --plaque-font-size-number: 13px;
 }
 
 *,
@@ -155,7 +158,7 @@ body {
 
 .plaque__fit {
   display: inline-block;
-  font-size: 18px;
+  font-size: var(--plaque-font-size);
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -175,7 +178,7 @@ body {
 }
 
 .plaque__number .plaque__fit {
-  font-size: 13px;
+  font-size: var(--plaque-font-size-number);
 }
 
 .plaque__name {
@@ -192,6 +195,7 @@ body {
 }
 
 .plaque__name .plaque__fit {
+  font-size: var(--plaque-font-size-name);
   transform-origin: left center;
 }
 

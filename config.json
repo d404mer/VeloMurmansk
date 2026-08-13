@@ -8,12 +8,19 @@
   "pollIntervalMs": 5000,
   "excelExportEnabled": false,
   "laps": {
-    "mode": "leader"
+    "mode": "all",
+    "hideTeamWord": true,
+    "fonts": {
+      "base": 18,
+      "name": 14,
+      "number": 16
+    }
   },
   "vmix": {
     "host": "localhost",
     "autoUpdate": true,
     "flowerCeremony": true,
+    "breakAfterBullet": false,
     "pageSize": 10,
     "maxPages": 6,
     "templates": {
@@ -34,7 +41,7 @@
     "indexedFields": {
       "num": "num {n}.Text",
       "name": "name {n}.Text",
-      "age": "age {n}.Text",
+      "age": "age{n}.Text",
       "city": "city {n}.Text",
       "place": "place {n}.Text",
       "result": "result {n}.Text",
@@ -98,33 +105,31 @@
     {
       "id": "xcochamp2025",
       "name": "ᅟ",
-      "raceGuid": "358f8164-8a38-407d-828d-162892e6c5a8",
+      "raceGuid": "e5799b8a-1024-4a5e-b741-14d0f21dc800",
       "categories": [
         {
           "id": "women",
-          "name": "Кубок России Финал • Короткий круг • Женщины",
-          "stageGuid": "2740b6d8-73f9-4836-a739-b57371cdb591",
-          "categoryGuid": "f786353b-3749-4157-a397-e88585168303",
-          "totalLaps": 5
+          "name": "Первенство России • Эстафета • 13-14 лет",
+          "stageGuid": "48c80bcb-39b1-4677-9b69-8414d3f856de",
+          "categoryGuid": "dc2d2637-e548-41cf-a7d1-0049e25f901f"
         },
         {
           "id": "men",
-          "name": "Кубок России Финал • Короткий круг • Мужчины",
-          "stageGuid": "d8e38b29-6d90-4738-90f5-b18e6520981a",
-          "categoryGuid": "fcbdb5d8-0aa1-4b76-a51f-56dc7dc369f8",
-          "totalLaps": 6
+          "name": "Первенство России • Эстафета • 15-16 лет",
+          "stageGuid": "cd7b1602-f810-4b9f-9df9-8803267d0811",
+          "categoryGuid": "c3f67d25-e04f-45b9-a020-9deb202ea67b"
         },
         {
           "id": "junior_women",
-          "name": "ааа",
-          "stageGuid": "2740b6d8-73f9-4836-a739-b57371cdb591",
-          "categoryGuid": "f786353b-3749-4157-a397-e88585168303"
+          "name": "Чемпионат России • Эстафета",
+          "stageGuid": "063c9aa4-3c66-49c6-be2b-f71f0c311c8a",
+          "categoryGuid": "5cb13503-d360-4a67-a0f9-32f8b67f304c"
         },
         {
           "id": "junior_men",
           "name": "ааа",
-          "stageGuid": "2740b6d8-73f9-4836-a739-b57371cdb591",
-          "categoryGuid": "f786353b-3749-4157-a397-e88585168303"
+          "stageGuid": "063c9aa4-3c66-49c6-be2b-f71f0c311c8a",
+          "categoryGuid": "5cb13503-d360-4a67-a0f9-32f8b67f304c"
         }
       ]
     }

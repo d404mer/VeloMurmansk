@@ -37,6 +37,8 @@
   const lapStatusEl = document.getElementById('lap-status');
 
   let lapsMode = 'leader';
+  let appliedFontsKey = '';
+  let hideTeamWord = false;
   let leaderPlaque = null;
   const followers = [];
   const eventQueue = [];
@@ -96,38 +98,71 @@
     seenEventIds.clear();
   }
 
+  function applyFonts(fonts) {
+    if (!fonts || typeof fonts !== 'object') return;
+    const base = Number(fonts.base);
+    const name = Number(fonts.name);
+    const number = Number(fonts.number);
+    const next = {
+      base: Number.isFinite(base) ? base : 18,
+      name: Number.isFinite(name) ? name : 18,
+      number: Number.isFinite(number) ? number : 13,
+    };
+    const key = `${next.base}|${next.name}|${next.number}`;
+    if (key === appliedFontsKey) return;
+    appliedFontsKey = key;
+    const root = document.documentElement.style;
+    root.setProperty('--plaque-font-size', `${next.base}px`);
+    root.setProperty('--plaque-font-size-name', `${next.name}px`);
+    root.setProperty('--plaque-font-size-number', `${next.number}px`);
+  }
+
+  function stripTeamWord(name) {
+    return String(name || '')
+      .replace(/(^|\s)команда(?=\s|$)/gi, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function displayName(name) {
+    const raw = name == null ? '' : String(name);
+    return hideTeamWord ? stripTeamWord(raw) : raw;
+  }
+
+  function setPlaqueName(el, rawName) {
+    const nameEl = el.querySelector('.plaque__name .plaque__fit');
+    if (nameEl) nameEl.textContent = displayName(rawName);
+  }
+
+  function refreshVisibleNames() {
+    if (leaderPlaque?.el) setPlaqueName(leaderPlaque.el, leaderPlaque.rawName);
+    for (const entry of followers) {
+      if (entry?.el) setPlaqueName(entry.el, entry.rawName);
+    }
+  }
+
+  function applyHideTeamWord(enabled) {
+    const next = !!enabled;
+    if (hideTeamWord === next) return;
+    hideTeamWord = next;
+    refreshVisibleNames();
+  }
+
   function createPlaqueEl(event) {
     const el = document.createElement('div');
     el.className = 'plaque';
     el.innerHTML =
       `<div class="plaque__place"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(event.place ?? ''))}</span></span></div>` +
       `<div class="plaque__number"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(event.number ?? ''))}</span></span></div>` +
-      `<div class="plaque__name"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(event.name ?? ''))}</span></span></div>` +
+      `<div class="plaque__name"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(displayName(event.name))}</span></span></div>` +
       `<div class="plaque__gap"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(gapField(event)))}</span></span></div>`;
-    fitPlaqueText(el);
     return el;
   }
 
   function fillPlaqueEl(el, event) {
-    const fields = [event.place, event.number, event.name, gapField(event)];
+    const fields = [event.place, event.number, displayName(event.name), gapField(event)];
     el.querySelectorAll('.plaque__fit').forEach((textEl, index) => {
       textEl.textContent = fields[index] == null ? '' : String(fields[index]);
-    });
-    fitPlaqueText(el);
-  }
-
-  function fitPlaqueText(plaqueEl) {
-    plaqueEl.querySelectorAll('.plaque__fit-wrap').forEach((wrap) => {
-      const textEl = wrap.querySelector('.plaque__fit');
-      if (!textEl || !textEl.textContent) return;
-
-      textEl.style.transform = 'none';
-      const available = wrap.clientWidth;
-      const natural = textEl.getBoundingClientRect().width;
-
-      if (natural > available && available > 0) {
-        textEl.style.transform = `scale(${available / natural})`;
-      }
     });
   }
 
@@ -189,12 +224,13 @@
   function appendLeader(event) {
     if (leaderPlaque) {
       leaderPlaque.id = event.id;
+      leaderPlaque.rawName = event.name ?? '';
       fillPlaqueEl(leaderPlaque.el, event);
       return;
     }
 
     const el = createPlaqueEl(event);
-    leaderPlaque = { el, id: event.id, isLeader: true };
+    leaderPlaque = { el, id: event.id, isLeader: true, rawName: event.name ?? '' };
     leaderSlot.appendChild(el);
     revealPlaque(el);
   }
@@ -238,7 +274,7 @@
 
   function appendFollower(event) {
     const el = createPlaqueEl(event);
-    const entry = { el, id: event.id, isLeader: false };
+    const entry = { el, id: event.id, isLeader: false, rawName: event.name ?? '' };
 
     if (followers.length >= maxVisibleFollowers()) {
       shiftOldestFollower(el, entry);
@@ -434,7 +470,7 @@
     if (!lapStatusEl || !lapState) return;
     const parts = [
       lapState.lapLabel || (lapState.currentLap ? `Круг ${lapState.currentLap}` : ''),
-      lapState.leaderName || '',
+      displayName(lapState.leaderName || ''),
       lapState.splitTime ? `(${lapState.splitTime})` : '',
     ].filter(Boolean);
     lapStatusEl.textContent = parts.join(' · ');
@@ -457,6 +493,14 @@
 
         if (data.lapsMode) {
           applyLapsMode(data.lapsMode);
+        }
+
+        if (data.fonts) {
+          applyFonts(data.fonts);
+        }
+
+        if (data.hideTeamWord != null) {
+          applyHideTeamWord(data.hideTeamWord);
         }
 
         if (data.lapState) {
@@ -485,28 +529,32 @@
   }
 
   async function simulateLeaderLap() {
-    await fetch('/api/laps/simulate-leader', {
+    const res = await fetch('/api/laps/simulate-leader', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ categoryId: categoryId || undefined }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error(data.error || 'simulate-leader failed');
+      if (lapStatusEl && data.error) lapStatusEl.textContent = data.error;
+    }
   }
 
   async function simulateRandom() {
-    const event = nextDemoEvent(false);
-    await fetch('/api/laps/simulate', {
+    const res = await fetch('/api/laps/simulate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        place: event.place,
-        number: event.number,
-        name: event.name,
-        gap: event.gap,
-        splitTime: event.splitTime,
-        lapNumber: currentCompletedLap || event.lapNumber,
         categoryId: categoryId || undefined,
+        lapNumber: currentCompletedLap || undefined,
       }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error(data.error || 'simulate failed');
+      if (lapStatusEl && data.error) lapStatusEl.textContent = data.error;
+    }
   }
 
   async function replayFromApi() {
