@@ -45,6 +45,7 @@ Vue.createApp({
       vmixPreviewInputs: {},
       vmixPreviewSelectedInput: '',
       fieldMappingPlaques: [],
+      fieldMappingBaseline: [],
       fieldMappingSelectedPlaqueId: 'startlist',
       fieldMappingDefaults: {},
       fieldMappingSourceFields: [],
@@ -185,6 +186,7 @@ Vue.createApp({
           this.fieldMappingSourceFields = res.data.availableSourceFields || [];
           this.fieldMappingDefaults = res.data.defaultMapping || {};
           this.fieldMappingPlaques = res.data.plaques || [];
+          this.fieldMappingBaseline = JSON.parse(JSON.stringify(this.fieldMappingPlaques));
           if (
             !this.fieldMappingPlaques.some((plaque) => plaque.id === this.fieldMappingSelectedPlaqueId)
           ) {
@@ -223,12 +225,93 @@ Vue.createApp({
       }
     },
 
+    /** Push edits (vs loaded baseline) onto every plaque before save. */
+    propagateSharedFieldEdits() {
+      const vmixEdits = new Map();
+      const sourceEdits = new Map();
+
+      for (const plaque of this.fieldMappingPlaques) {
+        const basePlaque = this.fieldMappingBaseline.find((item) => item.id === plaque.id);
+        for (const field of plaque.fields || []) {
+          const configKey = field.vmixConfigKey || field.key;
+          const baseField = (basePlaque?.fields || []).find(
+            (item) =>
+              (item.vmixConfigKey || item.key) === configKey && item.vmixStorage === field.vmixStorage
+          );
+
+          if (field.editableVmixName !== false) {
+            const currentName = String(field.vmixFieldName || '').trim();
+            const baseName = String(baseField?.vmixFieldName || '').trim();
+            if (currentName && currentName !== baseName) {
+              vmixEdits.set(`${field.vmixStorage}|${configKey}`, currentName);
+            }
+          }
+
+          if (field.editableSource && field.key) {
+            const currentSource = String(field.sourcePath || '').trim();
+            const baseSource = String(baseField?.sourcePath || '').trim();
+            if (currentSource !== baseSource) {
+              sourceEdits.set(field.key, currentSource);
+            }
+          }
+        }
+      }
+
+      for (const plaque of this.fieldMappingPlaques) {
+        for (const field of plaque.fields || []) {
+          const configKey = field.vmixConfigKey || field.key;
+          const vmixKey = `${field.vmixStorage}|${configKey}`;
+          if (field.editableVmixName !== false && vmixEdits.has(vmixKey)) {
+            field.vmixFieldName = vmixEdits.get(vmixKey);
+          }
+          if (field.editableSource && sourceEdits.has(field.key)) {
+            field.sourcePath = sourceEdits.get(field.key);
+          }
+        }
+      }
+    },
+
+    collectFieldMappingOverrides() {
+      const indexedFields = {};
+      const singleFields = {};
+      const fieldMapping = {};
+
+      const applyField = (field) => {
+        const configKey = field.vmixConfigKey || field.key;
+        const vmixFieldName = String(field.vmixFieldName || '').trim();
+        if (vmixFieldName && field.editableVmixName !== false) {
+          if (field.vmixStorage === 'indexed') indexedFields[configKey] = vmixFieldName;
+          if (field.vmixStorage === 'single') singleFields[configKey] = vmixFieldName;
+        }
+        if (field.editableSource && field.key) {
+          fieldMapping[field.key] = String(field.sourcePath || '').trim();
+        }
+      };
+
+      // Baseline from all plaques, then active plaque wins on conflicts.
+      for (const plaque of this.fieldMappingPlaques) {
+        for (const field of plaque.fields || []) applyField(field);
+      }
+      const active = this.fieldMappingActivePlaque;
+      if (active) {
+        for (const field of active.fields || []) applyField(field);
+      }
+
+      return { indexedFields, singleFields, fieldMapping };
+    },
+
     saveFieldMapping() {
+      if (this.fieldMappingSaving) return Promise.resolve();
       this.fieldMappingSaving = true;
       this.fieldMappingStatus = '';
       this.fieldMappingStatusError = false;
+      this.propagateSharedFieldEdits();
+      const overrides = this.collectFieldMappingOverrides();
       return axios
-        .post('/api/vmix/field-mapping', { plaques: this.fieldMappingPlaques })
+        .post('/api/vmix/field-mapping', {
+          plaques: this.fieldMappingPlaques,
+          ...overrides,
+        })
         .then((res) => {
           if (!res.data?.ok) {
             this.fieldMappingStatus = 'Не удалось сохранить';
@@ -236,7 +319,12 @@ Vue.createApp({
             return;
           }
           this.fieldMappingPlaques = res.data.plaques || [];
+          this.fieldMappingBaseline = JSON.parse(JSON.stringify(this.fieldMappingPlaques));
           this.fieldMappingStatus = 'Сохранено';
+          // Refresh Templates preview only (GET) — never save from that tab's draft here.
+          if (this.vmixTemplateKeys.length) {
+            this.loadVmixTemplates();
+          }
         })
         .catch((err) => {
           this.fieldMappingStatus = err.response?.data?.error || err.message || 'Ошибка сохранения';
@@ -312,10 +400,10 @@ Vue.createApp({
       this.vmixTemplatesSaving = true;
       this.vmixTemplatesStatus = '';
       this.vmixTemplatesStatusError = false;
+      // Only Input names — SelectedName maps are owned by «Маппинг полей»
+      // and must not be overwritten by a stale Templates draft.
       const payload = {
         templates: { ...this.vmixTemplatesDraft },
-        indexedFields: this.fieldEntriesToObject(this.vmixIndexedFields),
-        singleFields: this.fieldEntriesToObject(this.vmixSingleFields),
       };
       return axios
         .post('/api/vmix/templates', payload)
@@ -330,7 +418,10 @@ Vue.createApp({
           this.vmixTemplatesDraft = { ...(res.data.templates || {}) };
           this.vmixIndexedFields = this.objectToFieldEntries(res.data.indexedFields);
           this.vmixSingleFields = this.objectToFieldEntries(res.data.singleFields);
-          this.vmixTemplatesStatus = 'Сохранено';
+          this.vmixTemplatesStatus = 'Сохранено (только Input)';
+          if (this.fieldMappingPlaques.length) {
+            this.loadFieldMapping();
+          }
         })
         .catch((err) => {
           this.vmixTemplatesStatus = err.response?.data?.error || err.message || 'Ошибка сохранения';

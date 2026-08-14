@@ -17,12 +17,24 @@ const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
 const PORT = process.env.PORT || '3000';
 
+let configMtimeMs = 0;
+
+function readConfigFile() {
+  const text = fs.readFileSync(CONFIG_PATH, 'utf8');
+  try {
+    configMtimeMs = fs.statSync(CONFIG_PATH).mtimeMs;
+  } catch (_) {
+    /* ignore */
+  }
+  return JSON.parse(text);
+}
+
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-let config = loadConfig();
+let config = readConfigFile();
 let connection = null;
 let vmixConnected = false;
 let raceData = emptyRaceData();
@@ -69,14 +81,92 @@ function getDisplayData() {
 }
 
 function loadConfig() {
-  return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+  return readConfigFile();
+}
+
+/** If config.json changed on disk (another process / IDE), refresh memory first. */
+function reloadConfigFromDisk() {
+  try {
+    const mtime = fs.statSync(CONFIG_PATH).mtimeMs;
+    if (mtime === configMtimeMs) return false;
+    config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    configMtimeMs = mtime;
+    console.log('[config] reloaded from disk');
+    return true;
+  } catch (err) {
+    console.warn('[config] reload failed:', err.message || err);
+    return false;
+  }
+}
+
+function snapshotFieldMaps(cfg) {
+  return JSON.stringify({
+    indexedFields: cfg?.vmix?.indexedFields || {},
+    singleFields: cfg?.vmix?.singleFields || {},
+  });
+}
+
+function diffFieldMaps(beforeJson, afterJson) {
+  try {
+    const before = JSON.parse(beforeJson);
+    const after = JSON.parse(afterJson);
+    const lines = [];
+    for (const group of ['indexedFields', 'singleFields']) {
+      const b = before[group] || {};
+      const a = after[group] || {};
+      const keys = new Set([...Object.keys(b), ...Object.keys(a)]);
+      for (const key of keys) {
+        if (b[key] === a[key]) continue;
+        lines.push(`${group}.${key}: ${JSON.stringify(b[key] ?? null)} → ${JSON.stringify(a[key] ?? null)}`);
+      }
+    }
+    return lines;
+  } catch (_) {
+    return ['(diff unavailable)'];
+  }
 }
 
 function saveConfig(newConfig) {
   if (newConfig) {
     config = newConfig;
   }
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+  const payload = `${JSON.stringify(config, null, 2)}\n`;
+  const tmpPath = `${CONFIG_PATH}.${process.pid}.tmp`;
+  fs.writeFileSync(tmpPath, payload, 'utf8');
+  fs.renameSync(tmpPath, CONFIG_PATH);
+  try {
+    configMtimeMs = fs.statSync(CONFIG_PATH).mtimeMs;
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+/**
+ * Reload disk → mutate → write only if something actually changed.
+ * Avoids rewriting config.json on no-op field-mapping saves (fights the IDE / looks like “self-revert”).
+ */
+function updateConfig(mutator, reason = 'update') {
+  reloadConfigFromDisk();
+  const beforeAll = JSON.stringify(config);
+  const beforeMaps = snapshotFieldMaps(config);
+  const result = mutator(config);
+  const afterAll = JSON.stringify(config);
+  const afterMaps = snapshotFieldMaps(config);
+
+  if (beforeMaps !== afterMaps) {
+    const lines = diffFieldMaps(beforeMaps, afterMaps);
+    console.log(`[config] field maps changed via "${reason}"`);
+    for (const line of lines) console.log(`  ${line}`);
+  }
+
+  if (beforeAll === afterAll) {
+    console.log(`[config] skip write via "${reason}" (no changes)`);
+    return result;
+  }
+
+  saveConfig();
+  console.log(`[config] wrote via "${reason}"`);
+  return result;
 }
 
 function getActiveEvent() {
@@ -451,6 +541,7 @@ async function onConfigSaved() {
 app.use(
   createSetupRoutes({
     getConfig: () => config,
+    beginConfigUpdate: reloadConfigFromDisk,
     saveConfig,
     onConfigSaved,
   })
@@ -520,15 +611,16 @@ app.post('/api/freeze', (req, res) => {
 
 app.post('/api/category', async (req, res) => {
   const { eventId, categoryId } = req.body;
-  if (eventId) config.activeEventId = eventId;
+  updateConfig((cfg) => {
+    if (eventId) cfg.activeEventId = eventId;
+    if (categoryId) cfg.activeCategoryId = categoryId;
+  }, 'category');
   if (categoryId) {
-    config.activeCategoryId = categoryId;
     lapTracker.initCategory(categoryId);
     vmixPusher.resetCache();
     const cat = getActiveCategory(getActiveEvent());
     if (cat) lapTracker.setTotalLaps(categoryId, getCategoryTotalLaps(cat));
   }
-  saveConfig();
   await refreshData();
   res.json({
     ok: true,
@@ -556,8 +648,9 @@ app.post('/api/excel-export', (req, res) => {
     res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
     return;
   }
-  config.excelExportEnabled = enabled;
-  saveConfig();
+  updateConfig((cfg) => {
+    cfg.excelExportEnabled = enabled;
+  }, 'excel-export');
   res.json({ ok: true, excelExportEnabled: isExcelExportEnabled() });
 });
 
@@ -567,9 +660,10 @@ app.post('/api/flower-ceremony', (req, res) => {
     res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
     return;
   }
-  if (!config.vmix) config.vmix = {};
-  config.vmix.flowerCeremony = enabled;
-  saveConfig();
+  updateConfig((cfg) => {
+    if (!cfg.vmix) cfg.vmix = {};
+    cfg.vmix.flowerCeremony = enabled;
+  }, 'flower-ceremony');
   vmixPusher.resetCache();
   pushResultsToVmix(getDisplayData());
   res.json({ ok: true, flowerCeremony: isFlowerCeremony() });
@@ -581,9 +675,10 @@ app.post('/api/break-after-bullet', (req, res) => {
     res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
     return;
   }
-  if (!config.vmix) config.vmix = {};
-  config.vmix.breakAfterBullet = enabled;
-  saveConfig();
+  updateConfig((cfg) => {
+    if (!cfg.vmix) cfg.vmix = {};
+    cfg.vmix.breakAfterBullet = enabled;
+  }, 'break-after-bullet');
   vmixPusher.resetCache();
   pushResultsToVmix(getDisplayData());
   res.json({ ok: true, breakAfterBullet: isBreakAfterBullet() });
@@ -661,9 +756,10 @@ app.post('/api/laps/mode', (req, res) => {
     res.status(400).json({ ok: false, error: 'mode must be "leader" or "all"' });
     return;
   }
-  if (!config.laps) config.laps = {};
-  config.laps.mode = mode;
-  saveConfig();
+  updateConfig((cfg) => {
+    if (!cfg.laps) cfg.laps = {};
+    cfg.laps.mode = mode;
+  }, 'laps/mode');
   res.json({ ok: true, lapsMode: getLapsMode() });
 });
 
@@ -673,23 +769,29 @@ app.post('/api/laps/hide-team-word', (req, res) => {
     res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
     return;
   }
-  if (!config.laps) config.laps = {};
-  config.laps.hideTeamWord = enabled;
-  saveConfig();
+  updateConfig((cfg) => {
+    if (!cfg.laps) cfg.laps = {};
+    cfg.laps.hideTeamWord = enabled;
+  }, 'laps/hide-team-word');
   res.json({ ok: true, hideTeamWord: isHideTeamWord() });
 });
 
 app.post('/api/laps/fonts', (req, res) => {
   const body = req.body || {};
-  const current = getLapsFonts();
-  const next = {
-    base: body.base != null ? clampFontSize(body.base, current.base) : current.base,
-    name: body.name != null ? clampFontSize(body.name, current.name) : current.name,
-    number: body.number != null ? clampFontSize(body.number, current.number) : current.number,
-  };
-  if (!config.laps) config.laps = {};
-  config.laps.fonts = next;
-  saveConfig();
+  updateConfig((cfg) => {
+    if (!cfg.laps) cfg.laps = {};
+    const fonts = cfg.laps.fonts || {};
+    const current = {
+      base: clampFontSize(fonts.base, DEFAULT_LAPS_FONTS.base),
+      name: clampFontSize(fonts.name, DEFAULT_LAPS_FONTS.name),
+      number: clampFontSize(fonts.number, DEFAULT_LAPS_FONTS.number),
+    };
+    cfg.laps.fonts = {
+      base: body.base != null ? clampFontSize(body.base, current.base) : current.base,
+      name: body.name != null ? clampFontSize(body.name, current.name) : current.name,
+      number: body.number != null ? clampFontSize(body.number, current.number) : current.number,
+    };
+  }, 'laps/fonts');
   res.json({ ok: true, fonts: getLapsFonts() });
 });
 
@@ -736,8 +838,11 @@ app.post('/api/laps/total-laps', (req, res) => {
     return;
   }
 
-  category.totalLaps = totalLaps;
-  saveConfig();
+  updateConfig((cfg) => {
+    const ev = cfg.events.find((e) => e.id === cfg.activeEventId) || cfg.events[0];
+    const cat = ev?.categories.find((c) => c.id === categoryId);
+    if (cat) cat.totalLaps = totalLaps;
+  }, 'laps/total-laps');
   lapTracker.setTotalLaps(categoryId, totalLaps);
 
   res.json({
@@ -842,13 +947,20 @@ app.get('/api/vmix/templates', (req, res) => {
 });
 
 app.post('/api/vmix/templates', (req, res) => {
-  const error = validateTemplatesUpdate(req.body || {});
+  const body = { ...(req.body || {}) };
+  // SelectedName maps are owned by /api/vmix/field-mapping — never accept them here,
+  // even from an old browser tab that still posts indexedFields/singleFields.
+  delete body.indexedFields;
+  delete body.singleFields;
+
+  const error = validateTemplatesUpdate(body);
   if (error) {
     res.status(400).json({ ok: false, error });
     return;
   }
-  applyTemplatesUpdate(config, req.body || {});
-  saveConfig();
+  updateConfig((cfg) => {
+    applyTemplatesUpdate(cfg, body);
+  }, 'vmix/templates');
   vmixPusher.resetCache();
   const view = getTemplatesView(config);
   console.log('[vmix/templates] updated, resultsPage=%s, startlistPage=%s', view.templates.resultsPage, view.templates.startlistPage);
@@ -874,8 +986,14 @@ app.post('/api/vmix/field-mapping', (req, res) => {
     res.status(400).json({ ok: false, error: 'Expected { plaques: [...] }' });
     return;
   }
-  applyPlaquesToConfig(config, plaques);
-  saveConfig();
+  updateConfig((cfg) => {
+    applyPlaquesToConfig(cfg, plaques, {
+      indexedFields: req.body?.indexedFields,
+      singleFields: req.body?.singleFields,
+      fieldMapping: req.body?.fieldMapping,
+    });
+  }, 'vmix/field-mapping');
+  vmixPusher.resetCache();
   res.json({
     ok: true,
     plaques: buildPlaquesView(config),

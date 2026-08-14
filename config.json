@@ -12,12 +12,12 @@
     "hideTeamWord": true,
     "fonts": {
       "base": 18,
-      "name": 14,
-      "number": 16
+      "name": 17,
+      "number": 15
     }
   },
   "vmix": {
-    "host": "localhost",
+    "host": "192.168.8.69",
     "autoUpdate": true,
     "flowerCeremony": true,
     "breakAfterBullet": false,
@@ -29,7 +29,7 @@
       "winner1": "leader1",
       "winner2": "leader2",
       "winner3": "leader3",
-      "winners": "winners_flowers",
+      "winners": "winners",
       "lapCounter": "time",
       "resultManual": "results{page}",
       "startlistManual": "startlist{page}"
@@ -67,8 +67,8 @@
       "class1": "class1.Text",
       "name1": "name1.Text",
       "name 1": "name 1.Text",
-      "name 2": "name 1.Text",
-      "name 3": "name 1.Text",
+      "name 2": "name 2.Text",
+      "name 3": "name 3.Text",
       "leaderName": "name 1.Text",
       "lap": "lap.Text"
     },
@@ -79,8 +79,8 @@
     ],
     "leaderNameFields": [
       "name 1",
-      "name 2",
-      "name 3"
+      "name 1",
+      "name 1"
     ],
     "indexedSpacedFrom": {},
     "startlistByCategory": {
@@ -99,37 +99,40 @@
       "gap": "leaderDifference"
     }
   },
-  "activeEventId": "xcochamp2025",
-  "activeCategoryId": "men",
+  "activeEventId": "xcoperv2026",
+  "activeCategoryId": "junior_men",
   "events": [
     {
-      "id": "xcochamp2025",
+      "id": "xcoperv2026",
       "name": "ᅟ",
-      "raceGuid": "e5799b8a-1024-4a5e-b741-14d0f21dc800",
+      "raceGuid": "80dd47ea-9545-42f0-a078-278c270cd810",
       "categories": [
         {
           "id": "women",
-          "name": "Первенство России • Эстафета • 13-14 лет",
-          "stageGuid": "48c80bcb-39b1-4677-9b69-8414d3f856de",
-          "categoryGuid": "dc2d2637-e548-41cf-a7d1-0049e25f901f"
+          "name": "Первенство России • Кросс-кантри • Девушки 13-14 лет",
+          "stageGuid": "5aef8b48-2ff0-46c4-a71f-e8ac6fdd9cb0",
+          "categoryGuid": "6b53cd2d-fd5f-4c74-b6f9-915a5834bc17",
+          "totalLaps": 4
         },
         {
           "id": "men",
-          "name": "Первенство России • Эстафета • 15-16 лет",
-          "stageGuid": "cd7b1602-f810-4b9f-9df9-8803267d0811",
-          "categoryGuid": "c3f67d25-e04f-45b9-a020-9deb202ea67b"
+          "name": "Первенство России • Кросс-кантри • Юноши 13-14 лет",
+          "stageGuid": "fe1096ef-f084-466b-8995-6bce2de7fd9a",
+          "categoryGuid": "e93327bf-f36a-438d-9ed3-f7a59a63e96e",
+          "totalLaps": 4
         },
         {
           "id": "junior_women",
-          "name": "Чемпионат России • Эстафета",
-          "stageGuid": "063c9aa4-3c66-49c6-be2b-f71f0c311c8a",
-          "categoryGuid": "5cb13503-d360-4a67-a0f9-32f8b67f304c"
+          "name": "Первенство России • Кросс-кантри • Девушки 15-16 лет",
+          "stageGuid": "aa6ea1c1-8216-47b0-be03-a68c1d400044",
+          "categoryGuid": "ee2aa0aa-9bbd-468a-88b9-2a4b8f9e181e",
+          "totalLaps": 6
         },
         {
           "id": "junior_men",
-          "name": "ааа",
-          "stageGuid": "063c9aa4-3c66-49c6-be2b-f71f0c311c8a",
-          "categoryGuid": "5cb13503-d360-4a67-a0f9-32f8b67f304c"
+          "name": "Первенство России • Кросс-кантри • Юноши 15-16 лет",
+          "stageGuid": "ecbf5e87-8cc7-4901-8ef6-decc2c7ee83b",
+          "categoryGuid": "a32a0deb-9aa7-4d48-8fd8-06c51624483f"
         }
       ]
     }

@@ -634,6 +634,7 @@
           <h2>Маппинг полей vMix</h2>
           <p class="field-mapping-panel__hint">
             Выберите плашку (Input в vMix), задайте её имя и настройте поля внутри.
+            Колонка «Имя в vMix» — SelectedName внутри титра (сохраняется в config).
             Источник данных — путь в Limetime; составные значения через «+».
           </p>
 
@@ -723,7 +724,8 @@
         <div v-show="activeTab === 'templates'" class="vmix-templates-panel">
           <h2>vMix шаблоны</h2>
           <p class="vmix-templates-panel__hint">
-            Имена Input (templates) и SelectedName-полей. Изменения применяются сразу, без перезапуска сервера.
+            Здесь сохраняются только имена Input (титров). Имена полей внутри титра (SelectedName)
+            меняйте во вкладке «Маппинг полей» — иначе старый черновик шаблонов может их затереть.
           </p>
 
           <h3>Templates (Input)</h3>
@@ -737,58 +739,40 @@
             />
           </div>
 
-          <h3>indexedFields</h3>
+          <h3>indexedFields / singleFields (только просмотр)</h3>
+          <p class="vmix-templates-panel__hint">
+            Редактирование SelectedName — в «Маппинг полей». Ниже актуальные значения из конфига.
+          </p>
           <div class="field-mapping-table-wrap">
             <table class="field-mapping-table">
               <thead>
                 <tr>
-                  <th>Ключ поля</th>
+                  <th>Ключ</th>
                   <th>SelectedName</th>
-                  <th></th>
+                  <th>Тип</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="(row, ri) in vmixIndexedFields" :key="'idx-' + ri">
-                  <td><input type="text" class="form-control form-control-sm" v-model="row.key" placeholder="num" /></td>
-                  <td><input type="text" class="form-control form-control-sm" v-model="row.value" placeholder="num {n}.Text" /></td>
-                  <td class="vmix-templates-row-actions">
-                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeIndexedField(ri)">×</button>
-                  </td>
+                  <td>{{ row.key }}</td>
+                  <td>{{ row.value }}</td>
+                  <td class="col-hint">indexed</td>
                 </tr>
-              </tbody>
-            </table>
-          </div>
-          <button type="button" class="btn btn-sm btn-outline-light" @click="addIndexedField">+ Добавить поле</button>
-
-          <h3>singleFields</h3>
-          <div class="field-mapping-table-wrap">
-            <table class="field-mapping-table">
-              <thead>
-                <tr>
-                  <th>Ключ поля</th>
-                  <th>SelectedName</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
                 <tr v-for="(row, ri) in vmixSingleFields" :key="'single-' + ri">
-                  <td><input type="text" class="form-control form-control-sm" v-model="row.key" placeholder="class" /></td>
-                  <td><input type="text" class="form-control form-control-sm" v-model="row.value" placeholder="class.Text" /></td>
-                  <td class="vmix-templates-row-actions">
-                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeSingleField(ri)">×</button>
-                  </td>
+                  <td>{{ row.key }}</td>
+                  <td>{{ row.value }}</td>
+                  <td class="col-hint">single</td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <button type="button" class="btn btn-sm btn-outline-light" @click="addSingleField">+ Добавить поле</button>
 
           <div class="field-mapping-actions">
             <button type="button" class="btn btn-success" @click="saveVmixTemplates" :disabled="vmixTemplatesSaving">
-              {{ vmixTemplatesSaving ? 'Сохранение…' : 'Сохранить' }}
+              {{ vmixTemplatesSaving ? 'Сохранение…' : 'Сохранить Input' }}
             </button>
             <button type="button" class="btn btn-outline-secondary" @click="loadVmixTemplates">
-              Сбросить изменения
+              Обновить
             </button>
             <span
               v-if="vmixTemplatesStatus"
@@ -852,6 +836,6 @@
   <script src="js/bootstrap.min.js"></script>
   <script src="js/axios.min.js"></script>
   <script src="js/vue.global.js"></script>
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=21"></script>
 </body>
 </html>
