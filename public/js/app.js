@@ -26,6 +26,14 @@ Vue.createApp({
       excelExportEnabled: true,
       flowerCeremony: true,
       breakAfterBullet: true,
+      numberTrim: 'none',
+      numberTrimOptions: [
+        { value: 'none', label: 'Без изменений' },
+        { value: 'tenths', label: 'Десятые' },
+        { value: 'hundredths', label: 'Сотые' },
+        { value: 'thousandths', label: 'Тысячные' },
+        { value: 'tenThousandths', label: 'Десятитысячные' },
+      ],
       lapState: {
         completedLap: 0,
         currentLap: 1,
@@ -115,7 +123,12 @@ Vue.createApp({
 
     formatNum(number) {
       if (number == null || number === '') return '';
-      const value = String(number);
+      const keep = { none: 0, tenths: 1, hundredths: 2, thousandths: 3, tenThousandths: 4 }[this.numberTrim] || 0;
+      let value = String(number);
+      if (keep) {
+        const digits = value.replace(/^№/, '').replace(/\D/g, '');
+        if (digits) value = String(Number(digits.slice(-keep)));
+      }
       return value.startsWith('№') ? value : `№${value}`;
     },
 
@@ -499,6 +512,21 @@ Vue.createApp({
         });
     },
 
+    saveNumberTrim(mode) {
+      const previous = this.numberTrim;
+      this.numberTrim = mode;
+      return axios
+        .post('/api/number-trim', { mode: this.numberTrim })
+        .then((res) => {
+          if (res.data?.numberTrim) this.numberTrim = res.data.numberTrim;
+        })
+        .catch((err) => {
+          this.numberTrim = previous;
+          this.lastError =
+            err.response?.data?.error || err.message || 'Ошибка сохранения обрезки номеров';
+        });
+    },
+
     simulateLeaderLap() {
       axios
         .post('/api/laps/simulate-leader', { categoryId: this.activeCategoryId })
@@ -621,6 +649,9 @@ Vue.createApp({
         }
         if (res.data.breakAfterBullet != null) {
           this.breakAfterBullet = !!res.data.breakAfterBullet;
+        }
+        if (res.data.numberTrim != null) {
+          this.numberTrim = res.data.numberTrim;
         }
       });
     },

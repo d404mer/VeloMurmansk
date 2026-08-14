@@ -10,7 +10,7 @@ const { createLapTracker, resolvePlaqueGap } = require('./lib/lapTracker');
 const { createVmixPusher, buildVmixPayload, groupPayloadByInput } = require('./lib/vmixPush');
 const { buildPlaquesView, applyPlaquesToConfig, AVAILABLE_SOURCE_FIELDS, DEFAULT_FIELD_MAPPING } = require('./lib/vmixPlaques');
 const { getTemplatesView, validateTemplatesUpdate, applyTemplatesUpdate } = require('./lib/vmixTemplates');
-const { resolveVmixConfig } = require('./lib/vmixConfig');
+const { resolveVmixConfig, normalizeNumberTrim } = require('./lib/vmixConfig');
 const { buildSetupView } = require('./lib/configEditor');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -281,6 +281,10 @@ function isFlowerCeremony() {
 
 function isBreakAfterBullet() {
   return config.vmix?.breakAfterBullet !== false;
+}
+
+function getNumberTrim() {
+  return normalizeNumberTrim(config.vmix?.numberTrim);
 }
 
 function broadcastLapEvent(event) {
@@ -587,6 +591,7 @@ app.get('/api/config', (req, res) => {
     excelExportEnabled: isExcelExportEnabled(),
     flowerCeremony: isFlowerCeremony(),
     breakAfterBullet: isBreakAfterBullet(),
+    numberTrim: getNumberTrim(),
   });
 });
 
@@ -684,6 +689,25 @@ app.post('/api/break-after-bullet', (req, res) => {
   res.json({ ok: true, breakAfterBullet: isBreakAfterBullet() });
 });
 
+app.post('/api/number-trim', (req, res) => {
+  const requested = req.body?.mode;
+  const mode = normalizeNumberTrim(requested);
+  if (requested !== mode) {
+    res.status(400).json({
+      ok: false,
+      error: 'mode must be none, tenths, hundredths, thousandths or tenThousandths',
+    });
+    return;
+  }
+  updateConfig((cfg) => {
+    if (!cfg.vmix) cfg.vmix = {};
+    cfg.vmix.numberTrim = mode;
+  }, 'number-trim');
+  vmixPusher.resetCache();
+  pushResultsToVmix(getDisplayData());
+  res.json({ ok: true, numberTrim: getNumberTrim() });
+});
+
 app.post('/updateData', async (req, res) => {
   await refreshData();
   res.json({ ok: true, mode: getDisplayData().mode, count: getDisplayData().displayList.length });
@@ -730,6 +754,7 @@ app.get('/api/laps/recent', (req, res) => {
     lapsMode: getLapsMode(),
     fonts: getLapsFonts(),
     hideTeamWord: isHideTeamWord(),
+    numberTrim: getNumberTrim(),
     lapState: lapTracker.getLapState(categoryId),
     events: dataFrozen ? [] : lapTracker.getRecentEvents(categoryId, limit),
   });
@@ -745,6 +770,7 @@ app.get('/api/laps/status', (req, res) => {
     lapsMode: getLapsMode(),
     fonts: getLapsFonts(),
     hideTeamWord: isHideTeamWord(),
+    numberTrim: getNumberTrim(),
     lapState: lapTracker.getLapState(categoryId),
     lastEvent: events.length ? events[events.length - 1] : null,
   });

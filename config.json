@@ -8,19 +8,19 @@
   "pollIntervalMs": 5000,
   "excelExportEnabled": false,
   "laps": {
-    "mode": "all",
+    "mode": "leader",
     "hideTeamWord": true,
     "fonts": {
       "base": 18,
       "name": 17,
-      "number": 15
+      "number": 17
     }
   },
   "vmix": {
     "host": "192.168.8.69",
     "autoUpdate": true,
-    "flowerCeremony": true,
-    "breakAfterBullet": false,
+    "flowerCeremony": false,
+    "breakAfterBullet": true,
     "pageSize": 10,
     "maxPages": 6,
     "templates": {
@@ -97,10 +97,11 @@
       "place": "position",
       "result": "resultTime",
       "gap": "leaderDifference"
-    }
+    },
+    "numberTrim": "hundredths"
   },
   "activeEventId": "xcoperv2026",
-  "activeCategoryId": "junior_men",
+  "activeCategoryId": "women",
   "events": [
     {
       "id": "xcoperv2026",
@@ -112,7 +113,7 @@
           "name": "Первенство России • Кросс-кантри • Девушки 13-14 лет",
           "stageGuid": "5aef8b48-2ff0-46c4-a71f-e8ac6fdd9cb0",
           "categoryGuid": "6b53cd2d-fd5f-4c74-b6f9-915a5834bc17",
-          "totalLaps": 4
+          "totalLaps": 2
         },
         {
           "id": "men",

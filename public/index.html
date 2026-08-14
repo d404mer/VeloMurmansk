@@ -69,6 +69,7 @@
       margin-bottom: 10px;
     }
     .vmix-broadcast-row label { margin: 0; font-size: 13px; color: #adb5bd; }
+    .vmix-broadcast-row .form-select { max-width: 240px; }
     .vmix-broadcast-hint { font-size: 12px; color: #adb5bd; margin: 8px 0 0; }
     li.list-group-item.list-group-item--sent {
       background-color: #2d6a4f !important;
@@ -622,6 +623,22 @@
               : 'В class: одна строка без переноса' }}
           </p>
           <div class="vmix-broadcast-row">
+            <label for="number-trim-select">Обрезка номеров</label>
+            <select
+              id="number-trim-select"
+              class="form-select form-select-sm"
+              :value="numberTrim"
+              @change="saveNumberTrim($event.target.value)"
+            >
+              <option v-for="option in numberTrimOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </div>
+          <p class="vmix-broadcast-hint">
+            Последние цифры номера без ведущих нулей (101 → 1 при десятых/сотых).
+          </p>
+          <div class="vmix-broadcast-row">
             <label>Ручной экспорт</label>
             <div>
               <button type="button" class="btn btn-sm btn-success" @click="exportExcel">Сохранить в Excel</button>
@@ -836,6 +853,6 @@
   <script src="js/bootstrap.min.js"></script>
   <script src="js/axios.min.js"></script>
   <script src="js/vue.global.js"></script>
-  <script type="module" src="js/app.js?v=21"></script>
+  <script type="module" src="js/app.js?v=22"></script>
 </body>
 </html>

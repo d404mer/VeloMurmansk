@@ -36,9 +36,18 @@
   const testPanel = document.getElementById('test-panel');
   const lapStatusEl = document.getElementById('lap-status');
 
+  const NUMBER_TRIM_DIGITS = {
+    none: 0,
+    tenths: 1,
+    hundredths: 2,
+    thousandths: 3,
+    tenThousandths: 4,
+  };
+
   let lapsMode = 'leader';
   let appliedFontsKey = '';
   let hideTeamWord = false;
+  let numberTrim = 'none';
   let leaderPlaque = null;
   const followers = [];
   const eventQueue = [];
@@ -47,6 +56,7 @@
   let clearing = false;
   let currentCompletedLap = null;
   let leaderNumber = '';
+  let lastLeaderRestoreKey = '';
   let demoTimer = null;
   let demoLap = 1;
 
@@ -77,6 +87,11 @@
     return false;
   }
 
+  function isZeroGap(value) {
+    const digits = String(value ?? '').replace(/\D/g, '');
+    return digits.length > 0 && /^0+$/.test(digits);
+  }
+
   function gapField(event) {
     if (!isLeaderMode()) {
       return event.gap ?? event.splitTime ?? '00:00';
@@ -84,7 +99,11 @@
     if (isLeaderEvent(event)) {
       return event.splitTime || event.gap || '00:00';
     }
-    return event.gap ?? '00:00';
+    const gap = event.gap;
+    if (gap == null || gap === '' || isZeroGap(gap)) return '+0:00';
+    const value = String(gap);
+    if (value.startsWith('+') || value.startsWith('-')) return value;
+    return `+${value}`;
   }
 
   function applyLapsMode(mode) {
@@ -129,6 +148,20 @@
     return hideTeamWord ? stripTeamWord(raw) : raw;
   }
 
+  function trimAthleteNumber(number) {
+    if (number == null || number === '') return '';
+    const raw = String(number);
+    const keep = NUMBER_TRIM_DIGITS[numberTrim] || 0;
+    if (!keep) return raw;
+    const digits = raw.replace(/^№/, '').replace(/\D/g, '');
+    if (!digits) return raw;
+    return String(Number(digits.slice(-keep)));
+  }
+
+  function displayNumber(number) {
+    return trimAthleteNumber(number);
+  }
+
   function setPlaqueName(el, rawName) {
     const nameEl = el.querySelector('.plaque__name .plaque__fit');
     if (nameEl) nameEl.textContent = displayName(rawName);
@@ -139,6 +172,25 @@
     for (const entry of followers) {
       if (entry?.el) setPlaqueName(entry.el, entry.rawName);
     }
+  }
+
+  function setPlaqueNumber(el, rawNumber) {
+    const numberEl = el.querySelector('.plaque__number .plaque__fit');
+    if (numberEl) numberEl.textContent = displayNumber(rawNumber);
+  }
+
+  function refreshVisibleNumbers() {
+    if (leaderPlaque?.el) setPlaqueNumber(leaderPlaque.el, leaderPlaque.rawNumber);
+    for (const entry of followers) {
+      if (entry?.el) setPlaqueNumber(entry.el, entry.rawNumber);
+    }
+  }
+
+  function applyNumberTrim(mode) {
+    const next = Object.prototype.hasOwnProperty.call(NUMBER_TRIM_DIGITS, mode) ? mode : 'none';
+    if (numberTrim === next) return;
+    numberTrim = next;
+    refreshVisibleNumbers();
   }
 
   function applyHideTeamWord(enabled) {
@@ -153,14 +205,14 @@
     el.className = 'plaque';
     el.innerHTML =
       `<div class="plaque__place"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(event.place ?? ''))}</span></span></div>` +
-      `<div class="plaque__number"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(event.number ?? ''))}</span></span></div>` +
+      `<div class="plaque__number"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(displayNumber(event.number))}</span></span></div>` +
       `<div class="plaque__name"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(displayName(event.name))}</span></span></div>` +
       `<div class="plaque__gap"><span class="plaque__fit-wrap"><span class="plaque__fit">${escapeHtml(String(gapField(event)))}</span></span></div>`;
     return el;
   }
 
   function fillPlaqueEl(el, event) {
-    const fields = [event.place, event.number, displayName(event.name), gapField(event)];
+    const fields = [event.place, displayNumber(event.number), displayName(event.name), gapField(event)];
     el.querySelectorAll('.plaque__fit').forEach((textEl, index) => {
       textEl.textContent = fields[index] == null ? '' : String(fields[index]);
     });
@@ -225,12 +277,13 @@
     if (leaderPlaque) {
       leaderPlaque.id = event.id;
       leaderPlaque.rawName = event.name ?? '';
+      leaderPlaque.rawNumber = event.number ?? '';
       fillPlaqueEl(leaderPlaque.el, event);
       return;
     }
 
     const el = createPlaqueEl(event);
-    leaderPlaque = { el, id: event.id, isLeader: true, rawName: event.name ?? '' };
+    leaderPlaque = { el, id: event.id, isLeader: true, rawName: event.name ?? '', rawNumber: event.number ?? '' };
     leaderSlot.appendChild(el);
     revealPlaque(el);
   }
@@ -274,7 +327,7 @@
 
   function appendFollower(event) {
     const el = createPlaqueEl(event);
-    const entry = { el, id: event.id, isLeader: false, rawName: event.name ?? '' };
+    const entry = { el, id: event.id, isLeader: false, rawName: event.name ?? '', rawNumber: event.number ?? '' };
 
     if (followers.length >= maxVisibleFollowers()) {
       shiftOldestFollower(el, entry);
@@ -336,6 +389,7 @@
     followers.length = 0;
     if (leaderSlot) leaderSlot.replaceChildren();
     if (track) track.replaceChildren();
+    lastLeaderRestoreKey = '';
   }
 
   function clearAllAnimated() {
@@ -387,6 +441,35 @@
     clearing = false;
     eventQueue.length = 0;
     removeAllPlaquesNow();
+  }
+
+  function leaderEventFromState(lapState) {
+    if (!isLeaderMode() || !lapState) return null;
+    const hasLeader =
+      (lapState.leaderNumber != null && lapState.leaderNumber !== '') ||
+      (lapState.leaderName != null && String(lapState.leaderName).trim() !== '');
+    if (!hasLeader) return null;
+    const completed = Number(lapState.completedLap);
+    if (!Number.isFinite(completed)) return null;
+    if (completed <= 0 && !lapState.splitTime) return null;
+    return {
+      id: `leader-state-${String(lapState.leaderNumber ?? '')}-${completed}`,
+      place: 1,
+      number: lapState.leaderNumber ?? '',
+      name: lapState.leaderName ?? '',
+      gap: lapState.splitTime || '00:00',
+      lapNumber: completed,
+      splitTime: lapState.splitTime || '',
+    };
+  }
+
+  function ensureLeaderFromState(lapState) {
+    const event = leaderEventFromState(lapState);
+    if (!event || clearing) return;
+    const key = `${event.number}|${event.name}|${event.splitTime}|${event.lapNumber}`;
+    if (leaderPlaque && key === lastLeaderRestoreKey) return;
+    lastLeaderRestoreKey = key;
+    appendLeader(event);
   }
 
   async function handleLapState(lapState) {
@@ -503,9 +586,14 @@
           applyHideTeamWord(data.hideTeamWord);
         }
 
+        if (data.numberTrim != null) {
+          applyNumberTrim(data.numberTrim);
+        }
+
         if (data.lapState) {
           updateLapStatus(data.lapState);
           await handleLapState(data.lapState);
+          ensureLeaderFromState(data.lapState);
         }
 
         if (clearing) return;
