@@ -33,6 +33,7 @@ function readConfigFile() {
 
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: '2mb' }));
 
@@ -248,17 +249,86 @@ function dumpLastRacePayload(payload) {
   }
 }
 
+function vmixHost() {
+  return config.vmix?.host || 'localhost';
+}
+
+function markVmixDisconnected(reason) {
+  if (vmixConnected) {
+    console.warn('[vmix] disconnected', reason || '');
+  }
+  vmixConnected = false;
+}
+
+function patchVmixSend(client) {
+  if (!client || client._veloSendPatched) return;
+  client._veloSendPatched = true;
+  client._sendMessageToSocket = async (message) => {
+    const socket = client._socket;
+    if (!socket || socket.destroyed || !socket.writable) {
+      markVmixDisconnected('socket not writable');
+      return;
+    }
+    try {
+      socket.write(message, (err) => {
+        if (!err) return;
+        markVmixDisconnected(err.message || err);
+        console.error('[vmix] send failed:', err.message || err);
+      });
+    } catch (err) {
+      markVmixDisconnected(err.message || err);
+      console.error('[vmix] send failed:', err.message || err);
+    }
+  };
+}
+
 function initVmix() {
   if (connection) return;
-  connection = new ConnectionTCP(config.vmix?.host || 'localhost');
+  let lastErrorLog = '';
+  connection = new ConnectionTCP(vmixHost(), { autoReconnect: true });
+  patchVmixSend(connection);
+
   connection.on('connect', () => {
+    lastErrorLog = '';
     vmixConnected = true;
-    console.log('vMix Connected!');
+    console.log(`vMix Connected! (${vmixHost()})`);
+    vmixPusher.resetCache();
+    try {
+      pushResultsToVmix(getDisplayData(), lastCategoryResults);
+    } catch (err) {
+      console.error('[vmix] push after connect failed:', err.message || err);
+    }
   });
-  connection.on('error', () => {
+
+  connection.on('close', () => {
+    markVmixDisconnected('connection closed, reconnecting…');
+  });
+
+  connection.on('end', () => {
+    markVmixDisconnected('connection ended');
+  });
+
+  connection.on('error', (err) => {
     vmixConnected = false;
+    const msg = err?.message || String(err);
+    if (msg === lastErrorLog) return;
+    lastErrorLog = msg;
+    console.error('[vmix]', msg);
   });
 }
+
+process.on('uncaughtException', (err) => {
+  const code = err?.code;
+  const stack = String(err?.stack || '');
+  const fromVmix = stack.includes('node-vmix') || stack.includes('connection-tcp');
+  if (fromVmix && (code === 'EPIPE' || code === 'ECONNRESET' || code === 'ERR_STREAM_WRITE_AFTER_END')) {
+    markVmixDisconnected(err.message || err);
+    console.error('[vmix] socket error (kept running):', err.message || err);
+    return;
+  }
+  console.error(err);
+  process.exit(1);
+});
 
 function buildCategoryStartlists(event, categoryResults) {
   if (!event) return [];
