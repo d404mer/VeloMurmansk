@@ -26,7 +26,8 @@
     }
   },
   "vmix": {
-    "host": "192.168.8.69",
+    "host": "localhost",
+    "httpPort": 8088,
     "autoUpdate": true,
     "flowerCeremony": false,
     "breakAfterBullet": true,
@@ -55,7 +56,7 @@
       "place": "place {n}.Text",
       "result": "result {n}.Text",
       "gap": "gap {n}.Text",
-      "flag": "flag {n}.Text"
+      "flag": "flag {n}.Source"
     },
     "startlistFields": [
       "num",
@@ -84,13 +85,13 @@
       "leaderName": "name 1.Text",
       "lap": "lap.Text",
       "city": "city.Text",
-      "flag": "flag.Text",
+      "flag": "flag.Source",
       "city 1": "city 1.Text",
       "city 2": "city 2.Text",
       "city 3": "city 3.Text",
-      "flag 1": "flag 1.Text",
-      "flag 2": "flag 2.Text",
-      "flag 3": "flag 3.Text"
+      "flag 1": "flag 1.Source",
+      "flag 2": "flag 2.Source",
+      "flag 3": "flag 3.Source"
     },
     "winnerNameFields": [
       "name 1",
@@ -131,7 +132,7 @@
     "numberTrim": "hundredths"
   },
   "activeEventId": "xcoperv2026",
-  "activeCategoryId": "men",
+  "activeCategoryId": "junior_women",
   "events": [
     {
       "id": "xcoperv2026",
@@ -150,7 +151,7 @@
           "name": "Первенство России • Кросс-кантри • Юноши 13-14 лет",
           "stageGuid": "fe1096ef-f084-466b-8995-6bce2de7fd9a",
           "categoryGuid": "e93327bf-f36a-438d-9ed3-f7a59a63e96e",
-          "totalLaps": 4
+          "totalLaps": 5
         },
         {
           "id": "junior_women",

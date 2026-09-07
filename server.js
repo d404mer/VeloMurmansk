@@ -407,44 +407,24 @@ function markVmixDisconnected(reason) {
   vmixConnected = false;
 }
 
-function patchVmixSend(client) {
-  if (!client || client._veloSendPatched) return;
-  client._veloSendPatched = true;
-  client._sendMessageToSocket = async (message) => {
-    const socket = client._socket;
-    if (!socket || socket.destroyed || !socket.writable) {
-      markVmixDisconnected('socket not writable');
-      return;
-    }
-    try {
-      socket.write(message, (err) => {
-        if (!err) return;
-        markVmixDisconnected(err.message || err);
-        console.error('[vmix] send failed:', err.message || err);
-      });
-    } catch (err) {
-      markVmixDisconnected(err.message || err);
-      console.error('[vmix] send failed:', err.message || err);
-    }
-  };
-}
-
 function initVmix() {
   if (connection) return;
   let lastErrorLog = '';
   connection = new ConnectionTCP(vmixHost(), { autoReconnect: true });
-  patchVmixSend(connection);
 
   connection.on('connect', () => {
     lastErrorLog = '';
     vmixConnected = true;
-    console.log(`vMix Connected! (${vmixHost()})`);
-    vmixPusher.resetCache();
-    try {
-      pushResultsToVmix(getDisplayData(), lastCategoryResults);
-    } catch (err) {
-      console.error('[vmix] push after connect failed:', err.message || err);
-    }
+    console.log(`vMix TCP Connected! (${vmixHost()}:8099)`);
+    setTimeout(() => {
+      if (!vmixConnected) return;
+      vmixPusher.resetCache();
+      try {
+        pushResultsToVmix(getDisplayData(), lastCategoryResults);
+      } catch (err) {
+        console.error('[vmix] push after connect failed:', err.message || err);
+      }
+    }, 400);
   });
 
   connection.on('close', () => {

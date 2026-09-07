@@ -1,0 +1,170 @@
+{
+  "isSuccess": true,
+  "categoryId": "junior_women",
+  "data": [
+    {
+      "id": "jw1",
+      "number": "2",
+      "position": 1,
+      "club": "Свердловская область",
+      "city": "Екатеринбург",
+      "resultTime": "14:05",
+      "leaderDifference": "",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Алина",
+        "lastName": "Кузнецова",
+        "age": 16,
+        "city": "Екатеринбург",
+        "club": "Свердловская область"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "14:05",
+          "lapTime": "14:05",
+          "groupRacePosition": 1,
+          "leaderDifference": ""
+        }
+      ]
+    },
+    {
+      "id": "jw2",
+      "number": "8",
+      "position": 2,
+      "club": "Пермский край",
+      "city": "Пермь",
+      "resultTime": "14:21",
+      "leaderDifference": "+0:16",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Виктория",
+        "lastName": "Попова",
+        "age": 15,
+        "city": "Пермь",
+        "club": "Пермский край"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "14:21",
+          "lapTime": "14:21",
+          "groupRacePosition": 2,
+          "leaderDifference": "+0:16"
+        }
+      ]
+    },
+    {
+      "id": "jw3",
+      "number": "11",
+      "position": 3,
+      "club": "Республика Башкортостан",
+      "city": "Уфа",
+      "resultTime": "14:38",
+      "leaderDifference": "+0:33",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Камила",
+        "lastName": "Ахметова",
+        "age": 16,
+        "city": "Уфа",
+        "club": "Республика Башкортостан"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "14:38",
+          "lapTime": "14:38",
+          "groupRacePosition": 3,
+          "leaderDifference": "+0:33"
+        }
+      ]
+    },
+    {
+      "id": "jw4",
+      "number": "19",
+      "position": 4,
+      "club": "Ханты-Мансийский автономный округ - Югра",
+      "city": "Ханты-Мансийск",
+      "resultTime": "14:55",
+      "leaderDifference": "+0:50",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Полина",
+        "lastName": "Егорова",
+        "age": 15,
+        "city": "Ханты-Мансийск",
+        "club": "Ханты-Мансийский автономный округ - Югра"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "14:55",
+          "lapTime": "14:55",
+          "groupRacePosition": 4,
+          "leaderDifference": "+0:50"
+        }
+      ]
+    },
+    {
+      "id": "jw5",
+      "number": "24",
+      "position": 5,
+      "club": "Тюменская область",
+      "city": "Тюмень",
+      "resultTime": "15:12",
+      "leaderDifference": "+1:07",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Софья",
+        "lastName": "Орлова",
+        "age": 16,
+        "city": "Тюмень",
+        "club": "Тюменская область"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "15:12",
+          "lapTime": "15:12",
+          "groupRacePosition": 5,
+          "leaderDifference": "+1:07"
+        }
+      ]
+    },
+    {
+      "id": "jw6",
+      "number": "37",
+      "position": 6,
+      "club": "Ямало-Ненецкий автономный округ",
+      "city": "Салехард",
+      "resultTime": "",
+      "leaderDifference": "",
+      "isFinished": false,
+      "isOnStart": true,
+      "account": {
+        "firstName": "Арина",
+        "lastName": "Фёдорова",
+        "age": 15,
+        "city": "Салехард",
+        "club": "Ямало-Ненецкий автономный округ"
+      },
+      "laps": []
+    }
+  ]
+}

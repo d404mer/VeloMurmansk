@@ -1,0 +1,170 @@
+{
+  "isSuccess": true,
+  "categoryId": "junior_men",
+  "data": [
+    {
+      "id": "jm1",
+      "number": "4",
+      "position": 1,
+      "club": "Красноярский край",
+      "city": "Красноярск",
+      "resultTime": "13:44",
+      "leaderDifference": "",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Артём",
+        "lastName": "Николаев",
+        "age": 16,
+        "city": "Красноярск",
+        "club": "Красноярский край"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "13:44",
+          "lapTime": "13:44",
+          "groupRacePosition": 1,
+          "leaderDifference": ""
+        }
+      ]
+    },
+    {
+      "id": "jm2",
+      "number": "6",
+      "position": 2,
+      "club": "Иркутская область",
+      "city": "Иркутск",
+      "resultTime": "13:59",
+      "leaderDifference": "+0:15",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Кирилл",
+        "lastName": "Зайцев",
+        "age": 15,
+        "city": "Иркутск",
+        "club": "Иркутская область"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "13:59",
+          "lapTime": "13:59",
+          "groupRacePosition": 2,
+          "leaderDifference": "+0:15"
+        }
+      ]
+    },
+    {
+      "id": "jm3",
+      "number": "15",
+      "position": 3,
+      "club": "Республика Саха (Якутия)",
+      "city": "Якутск",
+      "resultTime": "14:18",
+      "leaderDifference": "+0:34",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Айсен",
+        "lastName": "Петров",
+        "age": 16,
+        "city": "Якутск",
+        "club": "Республика Саха (Якутия)"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "14:18",
+          "lapTime": "14:18",
+          "groupRacePosition": 3,
+          "leaderDifference": "+0:34"
+        }
+      ]
+    },
+    {
+      "id": "jm4",
+      "number": "20",
+      "position": 4,
+      "club": "Сахалинская область",
+      "city": "Южно-Сахалинск",
+      "resultTime": "14:36",
+      "leaderDifference": "+0:52",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Максим",
+        "lastName": "Белов",
+        "age": 15,
+        "city": "Южно-Сахалинск",
+        "club": "Сахалинская область"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "14:36",
+          "lapTime": "14:36",
+          "groupRacePosition": 4,
+          "leaderDifference": "+0:52"
+        }
+      ]
+    },
+    {
+      "id": "jm5",
+      "number": "27",
+      "position": 5,
+      "club": "Хабаровский край",
+      "city": "Хабаровск",
+      "resultTime": "14:58",
+      "leaderDifference": "+1:14",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Егор",
+        "lastName": "Макаров",
+        "age": 16,
+        "city": "Хабаровск",
+        "club": "Хабаровский край"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "14:58",
+          "lapTime": "14:58",
+          "groupRacePosition": 5,
+          "leaderDifference": "+1:14"
+        }
+      ]
+    },
+    {
+      "id": "jm6",
+      "number": "44",
+      "position": 6,
+      "club": "Приморский край",
+      "city": "Владивосток",
+      "resultTime": "",
+      "leaderDifference": "",
+      "isFinished": false,
+      "isOnStart": true,
+      "account": {
+        "firstName": "Данил",
+        "lastName": "Соловьёв",
+        "age": 15,
+        "city": "Владивосток",
+        "club": "Приморский край"
+      },
+      "laps": []
+    }
+  ]
+}

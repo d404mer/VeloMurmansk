@@ -1,0 +1,170 @@
+{
+  "isSuccess": true,
+  "categoryId": "women",
+  "data": [
+    {
+      "id": "w1",
+      "number": "1",
+      "position": 1,
+      "club": "Краснодарский край",
+      "city": "Краснодар",
+      "resultTime": "11:48",
+      "leaderDifference": "",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Анна",
+        "lastName": "Соколова",
+        "age": 14,
+        "city": "Краснодар",
+        "club": "Краснодарский край"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "11:48",
+          "lapTime": "11:48",
+          "groupRacePosition": 1,
+          "leaderDifference": ""
+        }
+      ]
+    },
+    {
+      "id": "w2",
+      "number": "5",
+      "position": 2,
+      "club": "Республика Адыгея",
+      "city": "Майкоп",
+      "resultTime": "12:02",
+      "leaderDifference": "+0:14",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Мария",
+        "lastName": "Лебедева",
+        "age": 13,
+        "city": "Майкоп",
+        "club": "Республика Адыгея"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "12:02",
+          "lapTime": "12:02",
+          "groupRacePosition": 2,
+          "leaderDifference": "+0:14"
+        }
+      ]
+    },
+    {
+      "id": "w3",
+      "number": "9",
+      "position": 3,
+      "club": "город Севастополь",
+      "city": "Севастополь",
+      "resultTime": "12:19",
+      "leaderDifference": "+0:31",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Елена",
+        "lastName": "Новикова",
+        "age": 14,
+        "city": "Севастополь",
+        "club": "город Севастополь"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "12:19",
+          "lapTime": "12:19",
+          "groupRacePosition": 3,
+          "leaderDifference": "+0:31"
+        }
+      ]
+    },
+    {
+      "id": "w4",
+      "number": "14",
+      "position": 4,
+      "club": "Республика Крым",
+      "city": "Симферополь",
+      "resultTime": "12:41",
+      "leaderDifference": "+0:53",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Ольга",
+        "lastName": "Морозова",
+        "age": 13,
+        "city": "Симферополь",
+        "club": "Республика Крым"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "12:41",
+          "lapTime": "12:41",
+          "groupRacePosition": 4,
+          "leaderDifference": "+0:53"
+        }
+      ]
+    },
+    {
+      "id": "w5",
+      "number": "22",
+      "position": 5,
+      "club": "Ростовская область",
+      "city": "Ростов-на-Дону",
+      "resultTime": "13:05",
+      "leaderDifference": "+1:17",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Дарья",
+        "lastName": "Волкова",
+        "age": 14,
+        "city": "Ростов-на-Дону",
+        "club": "Ростовская область"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "13:05",
+          "lapTime": "13:05",
+          "groupRacePosition": 5,
+          "leaderDifference": "+1:17"
+        }
+      ]
+    },
+    {
+      "id": "w6",
+      "number": "31",
+      "position": 6,
+      "club": "Ставропольский край",
+      "city": "Ставрополь",
+      "resultTime": "",
+      "leaderDifference": "",
+      "isFinished": false,
+      "isOnStart": true,
+      "account": {
+        "firstName": "Ирина",
+        "lastName": "Павлова",
+        "age": 13,
+        "city": "Ставрополь",
+        "club": "Ставропольский край"
+      },
+      "laps": []
+    }
+  ]
+}
