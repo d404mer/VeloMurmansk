@@ -3,21 +3,21 @@
   "categoryId": "men",
   "data": [
     {
-      "id": "123456",
-      "number": "42",
+      "id": "1",
+      "number": "3",
       "position": 1,
-      "club": "Название клуба",
-      "city": "Казань",
-      "resultTime": "37:42",
+      "club": "Мурманская область",
+      "city": "Мурманск",
+      "resultTime": "12:31",
       "leaderDifference": "",
       "isFinished": false,
-      "isOnStart": true,
+      "isOnStart": false,
       "account": {
         "firstName": "Иван",
         "lastName": "Иванов",
-        "age": 25,
-        "city": "Казань",
-        "club": "Название клуба"
+        "age": 14,
+        "city": "Мурманск",
+        "club": "Мурманская область"
       },
       "laps": [
         {
@@ -30,6 +30,141 @@
           "leaderDifference": ""
         }
       ]
+    },
+    {
+      "id": "2",
+      "number": "7",
+      "position": 2,
+      "club": "город Москва",
+      "city": "Москва",
+      "resultTime": "12:45",
+      "leaderDifference": "+0:14",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Пётр",
+        "lastName": "Петров",
+        "age": 14,
+        "city": "Москва",
+        "club": "город Москва"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "12:45",
+          "lapTime": "12:45",
+          "groupRacePosition": 2,
+          "leaderDifference": "+0:14"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "number": "12",
+      "position": 3,
+      "club": "город Санкт-Петербург",
+      "city": "Санкт-Петербург",
+      "resultTime": "13:02",
+      "leaderDifference": "+0:31",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Алексей",
+        "lastName": "Сидоров",
+        "age": 13,
+        "city": "Санкт-Петербург",
+        "club": "город Санкт-Петербург"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "13:02",
+          "lapTime": "13:02",
+          "groupRacePosition": 3,
+          "leaderDifference": "+0:31"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "number": "18",
+      "position": 4,
+      "club": "Московская область",
+      "city": "Подольск",
+      "resultTime": "13:18",
+      "leaderDifference": "+0:47",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Дмитрий",
+        "lastName": "Смирнов",
+        "age": 14,
+        "city": "Подольск",
+        "club": "Московская область"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "13:18",
+          "lapTime": "13:18",
+          "groupRacePosition": 4,
+          "leaderDifference": "+0:47"
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "number": "21",
+      "position": 5,
+      "club": "Челябинская область",
+      "city": "Челябинск",
+      "resultTime": "13:40",
+      "leaderDifference": "+1:09",
+      "isFinished": false,
+      "isOnStart": false,
+      "account": {
+        "firstName": "Никита",
+        "lastName": "Козлов",
+        "age": 13,
+        "city": "Челябинск",
+        "club": "Челябинская область"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "13:40",
+          "lapTime": "13:40",
+          "groupRacePosition": 5,
+          "leaderDifference": "+1:09"
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "number": "42",
+      "position": 6,
+      "club": "Республика Татарстан",
+      "city": "Казань",
+      "resultTime": "",
+      "leaderDifference": "",
+      "isFinished": false,
+      "isOnStart": true,
+      "account": {
+        "firstName": "Марат",
+        "lastName": "Газизов",
+        "age": 14,
+        "city": "Казань",
+        "club": "Республика Татарстан"
+      },
+      "laps": []
     }
   ]
 }

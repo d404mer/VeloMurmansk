@@ -5,7 +5,7 @@
     "port": 3000
   },
   "ingest": {
-    "debug": false
+    "debug": true
   },
   "limetime": {
     "baseUrl": "https://services-results.limetime.io/results/get",
@@ -53,13 +53,15 @@
       "city": "city {n}.Text",
       "place": "place {n}.Text",
       "result": "result {n}.Text",
-      "gap": "gap {n}.Text"
+      "gap": "gap {n}.Text",
+      "flag": "flag {n}.Text"
     },
     "startlistFields": [
       "num",
       "name",
       "age",
-      "city"
+      "city",
+      "flag"
     ],
     "resultsFields": [
       "place",
@@ -68,7 +70,8 @@
       "age",
       "city",
       "result",
-      "gap"
+      "gap",
+      "flag"
     ],
     "singleFields": {
       "class": "class.Text",
@@ -78,12 +81,30 @@
       "name 2": "name 2.Text",
       "name 3": "name 3.Text",
       "leaderName": "name 1.Text",
-      "lap": "lap.Text"
+      "lap": "lap.Text",
+      "city": "city.Text",
+      "flag": "flag.Text",
+      "city 1": "city 1.Text",
+      "city 2": "city 2.Text",
+      "city 3": "city 3.Text",
+      "flag 1": "flag 1.Text",
+      "flag 2": "flag 2.Text",
+      "flag 3": "flag 3.Text"
     },
     "winnerNameFields": [
       "name 1",
       "name 2",
       "name 3"
+    ],
+    "winnerCityFields": [
+      "city 1",
+      "city 2",
+      "city 3"
+    ],
+    "winnerFlagFields": [
+      "flag 1",
+      "flag 2",
+      "flag 3"
     ],
     "leaderNameFields": [
       "name 1",
@@ -109,7 +130,7 @@
     "numberTrim": "hundredths"
   },
   "activeEventId": "xcoperv2026",
-  "activeCategoryId": "women",
+  "activeCategoryId": "men",
   "events": [
     {
       "id": "xcoperv2026",

@@ -10,10 +10,19 @@
   --plaque-place   — ширина блока «место»
   --plaque-number  — ширина блока «номер»
   --plaque-gap-w   — ширина блока «до лидера» / результат лидера
-  --plaque-inner-gap — зазор между блоками внутри плашки
+  --plaque-inner-gap — зазор между блоками внутри плашки (0 = вплотную)
   --plaque-stack-gap — зазор между плашками
+  --plaque-radius — скругление внешних углов ряда
   ═══════════════════════════════════════════════════════════════
 */
+@font-face {
+  font-family: 'Lack';
+  src: url('/assets/fonts/Lack-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
   --plaque-left: 230px;
   --plaque-top: 153.5px;
@@ -22,8 +31,10 @@
   --plaque-place: 33px;
   --plaque-number: 33px;
   --plaque-gap-w: 70px;
-  --plaque-inner-gap: 7px;
+  --plaque-inner-gap: 0px;
   --plaque-stack-gap: 7px;
+  --plaque-radius: 4px;
+  --plaque-blue: #455ea5;
   --plaque-scroll-ms: 0.4s;
   --plaque-font-size: 18px;
   --plaque-font-size-name: 18px;
@@ -48,7 +59,8 @@ body {
   min-height: 100vh;
   width: 1920px;
   height: 1080px;
-  font-family: 'Montserrat', Arial, Helvetica, sans-serif;
+  font-family: 'Lack', Arial, Helvetica, sans-serif;
+  font-weight: 400;
 }
 
 #plaque-stack {
@@ -115,6 +127,8 @@ body {
   width: var(--plaque-width);
   height: var(--plaque-row-height);
   flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: var(--plaque-radius);
   opacity: 1;
   transform: translateY(100%);
   transition: transform var(--plaque-scroll-ms) ease-out;
@@ -158,8 +172,9 @@ body {
 
 .plaque__fit {
   display: inline-block;
+  font-family: 'Lack', Arial, Helvetica, sans-serif;
   font-size: var(--plaque-font-size);
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1;
   white-space: nowrap;
   transform-origin: center center;
@@ -173,7 +188,7 @@ body {
 
 .plaque__number {
   width: var(--plaque-number);
-  background: #e30613;
+  background: var(--plaque-blue);
   color: #fff;
 }
 
@@ -201,7 +216,7 @@ body {
 
 .plaque__gap {
   width: var(--plaque-gap-w);
-  background: #455ea5;
+  background: var(--plaque-blue);
   color: #fff;
 }
 
@@ -230,7 +245,7 @@ body {
 }
 
 .test-panel button {
-  font-family: 'Montserrat', sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 13px;
   font-weight: 700;
   padding: 8px 12px;
