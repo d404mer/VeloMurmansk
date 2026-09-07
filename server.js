@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execFile } = require('child_process');
 const express = require('express');
 const { ConnectionTCP } = require('node-vmix');
 const { fetchResults } = require('./lib/limetime');
@@ -18,6 +19,7 @@ const { parseRacePayload, RaceAdapterError } = require('./lib/raceAdapter');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
 const DEBUG_DUMP_PATH = path.join(__dirname, 'debug', 'last-race.json');
+const INGEST_CACHE_PATH = path.join(__dirname, 'debug', 'ingest-cache.json');
 
 let configMtimeMs = 0;
 
@@ -32,10 +34,26 @@ function readConfigFile() {
 }
 
 const app = express();
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json({ limit: '2mb' }));
+app.use(
+  express.json({
+    limit: '2mb',
+    type: ['json', 'application/json', 'application/*+json', 'text/json', 'text/plain'],
+  })
+);
 
 let config = readConfigFile();
 let connection = null;
@@ -49,6 +67,7 @@ const lapTracker = createLapTracker();
 const sseClients = [];
 let replayTimer = null;
 let lastCategoryResults = new Map();
+let lastCategoryRaw = new Map();
 let lastIngestAt = null;
 let lastIngestCount = 0;
 let lastIngestCategoryId = null;
@@ -231,22 +250,150 @@ function listLanIPv4() {
 function getIngestUrls() {
   const { host, port } = getActualListen();
   const ips =
-    host && host !== '0.0.0.0' && host !== '::' ? [host] : listLanIPv4();
+    host && host !== '0.0.0.0' && host !== '::' && host !== '::0'
+      ? [host]
+      : listLanIPv4();
   return ips.map((ip) => `http://${ip}:${port}/api/race`);
+}
+
+function ensureInboundFirewall(port) {
+  if (process.platform !== 'win32') return;
+  const name = `VELO HTTP ${port}`;
+  execFile(
+    'netsh',
+    ['advfirewall', 'firewall', 'show', 'rule', `name=${name}`],
+    { windowsHide: true },
+    (showErr, stdout) => {
+      const exists = !showErr && stdout && /Rule Name/i.test(stdout) && stdout.includes(name);
+      if (exists) {
+        console.log(`[race] firewall: правило «${name}» уже есть`);
+        return;
+      }
+      execFile(
+        'netsh',
+        [
+          'advfirewall',
+          'firewall',
+          'add',
+          'rule',
+          `name=${name}`,
+          'dir=in',
+          'action=allow',
+          'protocol=TCP',
+          `localport=${String(port)}`,
+          'profile=any',
+          'enable=yes',
+        ],
+        { windowsHide: true },
+        (addErr) => {
+          if (addErr) {
+            console.warn(
+              `[race] firewall: не удалось открыть TCP ${port} (нужны права администратора). Выполните:`
+            );
+            console.warn(
+              `  netsh advfirewall firewall add rule name="${name}" dir=in action=allow protocol=TCP localport=${port} profile=any`
+            );
+            return;
+          }
+          console.log(`[race] firewall: открыт входящий TCP ${port} («${name}»)`);
+        }
+      );
+    }
+  );
 }
 
 function isRaceDebugEnabled() {
   return process.env.RACE_DEBUG === '1' || config.ingest?.debug === true;
 }
 
-function dumpLastRacePayload(payload) {
-  if (!isRaceDebugEnabled()) return;
+function writeJsonAtomic(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(tmpPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  fs.renameSync(tmpPath, filePath);
+}
+
+function readJsonIfExists(filePath) {
   try {
-    fs.mkdirSync(path.dirname(DEBUG_DUMP_PATH), { recursive: true });
-    fs.writeFileSync(DEBUG_DUMP_PATH, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (err) {
-    console.warn('[race] debug dump failed:', err.message || err);
+    console.warn(`[race] failed to read ${path.basename(filePath)}:`, err.message || err);
+    return null;
   }
+}
+
+function persistIngestSnapshot(lastPayload) {
+  try {
+    const categories = {};
+    for (const [categoryId, athletes] of lastCategoryRaw) {
+      categories[categoryId] = athletes;
+    }
+    writeJsonAtomic(INGEST_CACHE_PATH, {
+      savedAt: new Date().toISOString(),
+      lastUpdated: raceData.lastUpdated,
+      lastIngestAt,
+      lastIngestCount,
+      lastIngestCategoryId,
+      categories,
+    });
+    if (lastPayload != null) {
+      writeJsonAtomic(DEBUG_DUMP_PATH, lastPayload);
+    }
+  } catch (err) {
+    console.warn('[race] persist failed:', err.message || err);
+  }
+}
+
+function dumpLastRacePayload(payload) {
+  persistIngestSnapshot(payload);
+}
+
+function ingestAthletesFromLegacyDump(dump) {
+  if (!dump || typeof dump !== 'object' || Array.isArray(dump)) return null;
+  if (dump.isSuccess === true && Array.isArray(dump.data)) {
+    const categoryId = dump.categoryId || config.activeCategoryId;
+    if (!categoryId) return null;
+    return { categories: { [categoryId]: dump.data }, lastIngestCategoryId: categoryId };
+  }
+  if (dump.categories && typeof dump.categories === 'object') return dump;
+  return null;
+}
+
+async function restoreIngestSnapshot() {
+  const cache = ingestAthletesFromLegacyDump(readJsonIfExists(INGEST_CACHE_PATH))
+    || ingestAthletesFromLegacyDump(readJsonIfExists(DEBUG_DUMP_PATH));
+  if (!cache?.categories) return;
+
+  const entries = Object.entries(cache.categories).filter(([, athletes]) => Array.isArray(athletes));
+  if (!entries.length) return;
+
+  if (cache.lastIngestAt) lastIngestAt = cache.lastIngestAt;
+  if (cache.lastIngestCount != null) lastIngestCount = cache.lastIngestCount;
+  if (cache.lastIngestCategoryId) lastIngestCategoryId = cache.lastIngestCategoryId;
+
+  let restored = 0;
+  for (const [categoryId, athletes] of entries) {
+    try {
+      lastCategoryRaw.set(categoryId, athletes);
+      await applyCategoryRaw(categoryId, athletes, { skipExcel: true });
+      restored += 1;
+    } catch (err) {
+      console.warn(`[race] restore skip ${categoryId}:`, err.message || err);
+    }
+  }
+
+  if (cache.lastUpdated && raceData.rawCount) {
+    raceData.lastUpdated = cache.lastUpdated;
+  }
+  if (!lastIngestAt && cache.savedAt) lastIngestAt = cache.savedAt;
+  if (!lastIngestCount && restored) {
+    lastIngestCount = lastCategoryResults.get(config.activeCategoryId)?.rawCount
+      || lastCategoryResults.get(lastIngestCategoryId)?.rawCount
+      || 0;
+  }
+
+  console.log(`[race] restored ${restored} categor${restored === 1 ? 'y' : 'ies'} from disk`);
 }
 
 function vmixHost() {
@@ -386,6 +533,8 @@ async function applyCategoryRaw(categoryId, rawAthletes, { skipExcel = false } =
   if (!event || !category) {
     throw new Error(`Category not found: ${categoryId}`);
   }
+
+  lastCategoryRaw.set(categoryId, rawAthletes);
 
   const transformed = transformResults(rawAthletes);
   lastCategoryResults.set(categoryId, transformed);
@@ -1428,16 +1577,21 @@ initVmix();
 syncLapTrackerFromConfig();
 const listen = getListenConfig();
 actualListen = listen;
-const boot = isHttpSource() ? Promise.resolve() : refreshData();
+const boot = isHttpSource() ? restoreIngestSnapshot() : refreshData();
 boot.then(() => {
   startPolling();
-  app.listen(listen.port, listen.host, () => {
+  const httpServer = app.listen(listen.port, listen.host, () => {
     console.log(`VELO running on http://${listen.host}:${listen.port}`);
+    ensureInboundFirewall(listen.port);
     const urls = getIngestUrls();
     if (urls.length) {
       console.log(`[race] адрес для судей: ${urls.join(', ')}`);
     } else {
       console.log(`[race] dataSource=${getDataSource()} POST /api/race`);
     }
+  });
+  httpServer.on('error', (err) => {
+    console.error(`[race] listen failed on ${listen.host}:${listen.port}:`, err.message || err);
+    process.exit(1);
   });
 });

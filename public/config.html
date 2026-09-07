@@ -59,20 +59,8 @@
             <option value="limetime">Опрос Limetime (запасной)</option>
           </select>
         </div>
-        <div class="col-md-6 mb-3 d-flex align-items-end">
-          <div class="form-check form-switch">
-            <input
-              id="ingest-debug-toggle"
-              class="form-check-input"
-              type="checkbox"
-              role="switch"
-              v-model="ingestDebug"
-            />
-            <label class="form-check-label" for="ingest-debug-toggle">Сохранять последний JSON</label>
-          </div>
-        </div>
       </div>
-      <p class="setup-hint" v-if="ingestDebug">Файл: <code>debug/last-race.json</code></p>
+      <p class="setup-hint">Последний JSON пишется всегда в <code>debug/ingest-cache.json</code> и восстанавливается после перезапуска.</p>
 
       <div class="row mt-3">
         <div class="col-md-8 mb-3">

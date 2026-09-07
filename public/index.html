@@ -644,21 +644,9 @@
               <span v-if="ingestCopyStatus">{{ ingestCopyStatus }}</span>
             </div>
           </div>
-          <div class="vmix-broadcast-row">
-            <label for="ingest-debug-toggle">Сохранять последний JSON</label>
-            <div class="form-check form-switch">
-              <input
-                id="ingest-debug-toggle"
-                class="form-check-input"
-                type="checkbox"
-                role="switch"
-                :checked="ingestDebug"
-                @change="saveIngestDebug($event.target.checked)"
-              />
-            </div>
-          </div>
           <p class="vmix-broadcast-hint">
-            {{ ingestDebug ? 'Пишется в debug/last-race.json' : 'Файл диагностики не пишется' }}
+            Последний JSON сохраняется всегда и поднимается после перезапуска
+            (<code>debug/ingest-cache.json</code>, <code>debug/last-race.json</code>).
           </p>
           <div class="vmix-broadcast-row">
             <label>Порт прослушивания</label>

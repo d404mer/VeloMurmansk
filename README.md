@@ -15,6 +15,7 @@
 ## Быстрый старт
 
 ```powershell
+New-NetFirewallRule -DisplayName "Node.js Server 3000" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
 cd "D:\Судейка\velo"
 npm install
 node server.js
