@@ -1,0 +1,35 @@
+{
+  "isSuccess": true,
+  "categoryId": "men",
+  "data": [
+    {
+      "id": "123456",
+      "number": "42",
+      "position": 1,
+      "club": "Название клуба",
+      "city": "Казань",
+      "resultTime": "37:42",
+      "leaderDifference": "",
+      "isFinished": false,
+      "isOnStart": true,
+      "account": {
+        "firstName": "Иван",
+        "lastName": "Иванов",
+        "age": 25,
+        "city": "Казань",
+        "club": "Название клуба"
+      },
+      "laps": [
+        {
+          "lapNumber": 1,
+          "name": "Круг 1",
+          "isOnLap": true,
+          "totalTime": "12:31",
+          "lapTime": "12:31",
+          "groupRacePosition": 1,
+          "leaderDifference": ""
+        }
+      ]
+    }
+  ]
+}

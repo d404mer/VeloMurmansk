@@ -55,7 +55,10 @@ https://services-results.limetime.io/results/get/{raceGuid}/{stageGuid}/{categor
 
 | Поле | Описание |
 |------|----------|
-| `pollIntervalMs` | Интервал опроса Limetime (мс), по умолчанию 5000 |
+| `dataSource` | `"limetime"` (опрос API) или `"http"` (приём `POST /api/race`) |
+| `server.host` / `server.port` | Адрес прослушивания, по умолчанию `0.0.0.0:3000` (перекрываются `HOST` / `PORT`) |
+| `ingest.debug` | `true` — сохранять последний POST в `debug/last-race.json` |
+| `pollIntervalMs` | Интервал опроса Limetime (мс), по умолчанию 5000; в режиме `http` poll не запускается |
 | `excelExportEnabled` | Автозапись Excel при каждом poll (`true`/`false`; если ключ **отсутствует** — считается включённым) |
 | `laps.mode` | `"leader"` или `"all"` — режим плашек отсечек |
 | `vmix.host` | Хост TCP API vMix, обычно `localhost` |
@@ -72,6 +75,25 @@ https://services-results.limetime.io/results/get/{raceGuid}/{stageGuid}/{categor
 Шаблоны vMix, indexed/single fields и field mapping можно править **из UI** (вкладки «vMix шаблоны» и «Маппинг полей») — перезапуск сервера не нужен.
 
 После ручной правки `config.json` на диске перезапустите `node server.js` (in-memory конфиг обновляется через API и `/config`, но не при внешнем редактировании файла без рестарта).
+
+### HTTP POST от судейской системы
+
+Вы **даёте судьям адрес** с панели («Адрес для судей» / кнопка «Копировать»). Они отправляют JSON, приложение само принимает. Это не опрос их сервера.
+
+1. Режим **Приём POST** (вкладка vMix или `/config`).
+2. Скопируйте LAN-URL вида `http://192.168.x.x:3000/api/race` и передайте судейской системе.
+3. Разрешите входящий TCP-порт в Windows Firewall (по умолчанию 3000).
+4. Судьи шлют `POST` с `Content-Type: application/json`.
+
+```powershell
+curl -X POST "http://192.168.1.100:3000/api/race" -H "Content-Type: application/json" --data-binary "@docs/samples/race-post.json"
+```
+
+Опционально в JSON: `categoryId` / `raceId` (или query `?categoryId=`). Если нет — пишется в активную категорию панели. Пример тела: [docs/samples/race-post.json](docs/samples/race-post.json).
+
+Диагностика: тумблер «Сохранять последний JSON» или `RACE_DEBUG=1` — файл `debug/last-race.json`.
+
+Опрос Limetime остаётся запасным режимом.
 
 ---
 
@@ -208,6 +230,7 @@ velo/
 ├── README.md
 ├── lib/
 │   ├── limetime.js           # HTTP-клиент Limetime
+│   ├── raceAdapter.js        # Валидация POST /api/race
 │   ├── transform.js          # Сырые данные → таблицы
 │   ├── lapTracker.js         # Отсечки, lapState, режим leader/all
 │   ├── vmixConfig.js         # resolveVmixConfig, formatLapText
@@ -235,7 +258,8 @@ velo/
 │   ├── architecture.md
 │   ├── api-reference.md
 │   ├── backend-modules.md
-│   └── GUIDE.md
+│   ├── GUIDE.md
+│   └── samples/race-post.json
 └── exports/
     └── data.xlsx
 ```

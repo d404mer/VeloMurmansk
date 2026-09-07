@@ -1,4 +1,12 @@
 {
+  "dataSource": "http",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 3000
+  },
+  "ingest": {
+    "debug": false
+  },
   "limetime": {
     "baseUrl": "https://services-results.limetime.io/results/get",
     "apiKey": "NFJADAJCNDJK_CDJCDSN_DDJNCDJ",

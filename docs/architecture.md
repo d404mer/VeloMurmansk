@@ -2,9 +2,9 @@
 
 ## Назначение
 
-**VELO Limetime** — локальный сервис для судейской/трансляционной бригады на велогонках с учётом Limetime (racetime.online). Он:
+**VELO Limetime** — локальный сервис для судейской/трансляционной бригады на велогонках. Источник данных: опрос Limetime API **или** HTTP POST от внешней судейской системы (`dataSource`). Он:
 
-1. Периодически загружает результаты по API для всех категорий активного события.
+1. Загружает результаты (poll Limetime **или** `POST /api/race`) по категориям активного события.
 2. Преобразует сырые данные в таблицы (старт, live, финал, лидеры).
 3. Отправляет данные в **vMix** по TCP (`SetText`, `OverlayInput1`) — **6 страниц по 10 строк**.
 4. Показывает **плашки отсечек** в Browser Source `/laps` при прохождении круга.
@@ -22,6 +22,7 @@ velo/
 ├── config.json
 ├── lib/
 │   ├── limetime.js
+│   ├── raceAdapter.js
 │   ├── transform.js
 │   ├── lapTracker.js
 │   ├── vmixConfig.js       # resolveVmixConfig, formatLapText
@@ -49,12 +50,13 @@ velo/
 flowchart TB
     subgraph External
         LT[Limetime API]
+        JS[Судейская система POST]
         VM[vMix TCP]
         BS[Browser Source /laps]
     end
 
     subgraph Server["server.js"]
-        Poll[Polling pollIntervalMs]
+        Poll[Polling или POST /api/race]
         State[raceData / frozenSnapshot]
         Freeze[dataFrozen]
         Config[config in-memory]
@@ -69,6 +71,7 @@ flowchart TB
     end
 
     LT -->|GET| Poll
+    JS -->|"POST /api/race"| Poll
     Poll --> TR
     TR --> State
     State --> VP
@@ -91,8 +94,8 @@ flowchart TB
 1. Загружает `config.json` в память (`config`).
 2. TCP к vMix (`ConnectionTCP`, `config.vmix.host`).
 3. `syncLapTrackerFromConfig()` — `totalLaps` из категорий.
-4. Первый `refreshData()`, затем `setInterval(refreshData, pollIntervalMs)`.
-5. HTTP на `PORT` (3000).
+4. Если `dataSource` = `limetime` — первый `refreshData()`, затем poll. Если `http` — poll не стартует.
+5. HTTP на `server.host`:`server.port` (по умолчанию `0.0.0.0:3000`).
 
 ### Цикл опроса (`refreshData`)
 
@@ -150,7 +153,7 @@ flowchart TB
 
 ### Плашки отсечек
 
-На каждом poll для каждого участника проверяются завершённые круги (`isOnLap && totalTime`). Новые круги (не в `seenPlaques`) → событие для `/laps`.
+На каждом poll/POST для каждого участника проверяются завершённые круги (`isOnLap && totalTime`). Новые круги (ключ `id||number` + `lapNumber`, не в `seenPlaques`) → событие для `/laps`.
 
 **Режим** `config.laps.mode` (`getLapsMode()`):
 
@@ -290,6 +293,9 @@ Vue-форма, `POST /api/setup` — событие и 4 категории, п
 
 ```json
 {
+  "dataSource": "limetime",
+  "server": { "host": "0.0.0.0", "port": 3000 },
+  "ingest": { "debug": false },
   "limetime": { "baseUrl", "apiKey", "origin", "referer" },
   "pollIntervalMs": 5000,
   "excelExportEnabled": false,

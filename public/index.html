@@ -8,7 +8,19 @@
   <link rel="stylesheet" href="/css/main.css" crossorigin="anonymous">
   <style>
     .meta-bar { color: #ccc; margin-bottom: 12px; font-size: 14px; }
-    .meta-bar .api-url { word-break: break-all; font-size: 12px; opacity: 0.85; }
+    .meta-bar .judge-url {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .meta-bar .judge-url code {
+      color: #fff;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    .meta-bar .judge-url__hint { font-size: 12px; color: #adb5bd; width: 100%; margin: 0; }
     .controls { margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-start; }
     .controls__group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .controls__label {
@@ -333,7 +345,12 @@
             <select class="form-select d-inline-block w-auto" v-model="activeCategoryId" @change="changeCategory">
               <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
             </select>
-            <button type="button" class="btn btn-secondary" @click="refreshNow">Обновить</button>
+            <button
+              v-if="dataSource !== 'http'"
+              type="button"
+              class="btn btn-secondary"
+              @click="refreshNow"
+            >Обновить</button>
             <button type="button" class="btn btn-warning" @click="toggleFreeze">
               {{ dataFrozen ? 'Снять заморозку' : 'Заморозить данные' }}
             </button>
@@ -348,14 +365,25 @@
         </div>
 
         <div class="meta-bar">
-          <div>Режим: <strong>{{ modeLabel }}</strong> · участников: {{ resultCount }}</div>
+          <div>Режим: <strong>{{ modeLabel }}</strong> · участников: {{ resultCount }} · {{ dataSourceLabel }}</div>
+          <div class="judge-url">
+            <span>Адрес для судей:</span>
+            <code>{{ ingestUrl }}</code>
+            <button type="button" class="btn btn-sm btn-outline-light" @click="copyIngestUrl">Копировать</button>
+            <span v-if="ingestCopyStatus">{{ ingestCopyStatus }}</span>
+            <p class="judge-url__hint">
+              Отправьте этот адрес судейской системе. Они шлют JSON, приложение само принимает.
+            </p>
+            <p v-if="ingestUrls.length > 1" class="judge-url__hint">Также: {{ ingestUrls.slice(1).join(', ') }}</p>
+          </div>
+          <div v-if="dataSource === 'http' && lastIngestAt">Последний пакет: {{ lastIngestAt }} ({{ lastIngestCount }})</div>
           <div v-if="dataFrozen" style="color:#ffd166"><strong>Данные заморожены</strong> (vMix и плашки не обновляются)</div>
           <div v-if="dataFrozen && frozenAt">Заморожено: {{ frozenAt }}</div>
           <div v-if="!dataFrozen && liveMode && liveMode !== mode">Live в API: {{ liveModeLabel }}</div>
           <div v-if="lastUpdated">Обновлено: {{ lastUpdated }}</div>
           <div v-if="lastExport">Excel: {{ lastExport.filename }}</div>
           <div v-if="lastError" style="color:#ff8a8a">Ошибка: {{ lastError }}</div>
-          <div v-if="activeCategoryUrl" class="api-url">API: {{ activeCategoryUrl }}</div>
+          <div v-if="dataSource !== 'http' && activeCategoryUrl" class="api-url">API: {{ activeCategoryUrl }}</div>
         </div>
 
         <div class="operator-tabs">
@@ -590,7 +618,80 @@
         </div>
 
         <div v-show="activeTab === 'vmix'" class="vmix-broadcast-panel">
-          <h2>Настройки вещания</h2>
+          <h2>Приём данных</h2>
+          <div class="vmix-broadcast-row">
+            <label for="data-source-select">Режим</label>
+            <select
+              id="data-source-select"
+              class="form-select form-select-sm"
+              :value="dataSource"
+              @change="saveDataSource($event.target.value)"
+            >
+              <option value="http">Приём POST от судей</option>
+              <option value="limetime">Опрос Limetime (запасной)</option>
+            </select>
+          </div>
+          <p class="vmix-broadcast-hint">
+            {{ dataSource === 'http'
+              ? 'Limetime полностью выключен: нет опроса API. Вы даёте судьям адрес, они шлют JSON.'
+              : 'Запасной режим: сервер сам опрашивает Limetime по ссылкам из Настроек.' }}
+          </p>
+          <div class="vmix-broadcast-row">
+            <label>Адрес для судей</label>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+              <code style="color:#fff">{{ ingestUrl }}</code>
+              <button type="button" class="btn btn-sm btn-outline-light" @click="copyIngestUrl">Копировать</button>
+              <span v-if="ingestCopyStatus">{{ ingestCopyStatus }}</span>
+            </div>
+          </div>
+          <div class="vmix-broadcast-row">
+            <label for="ingest-debug-toggle">Сохранять последний JSON</label>
+            <div class="form-check form-switch">
+              <input
+                id="ingest-debug-toggle"
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+                :checked="ingestDebug"
+                @change="saveIngestDebug($event.target.checked)"
+              />
+            </div>
+          </div>
+          <p class="vmix-broadcast-hint">
+            {{ ingestDebug ? 'Пишется в debug/last-race.json' : 'Файл диагностики не пишется' }}
+          </p>
+          <div class="vmix-broadcast-row">
+            <label>Порт прослушивания</label>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+              <input
+                type="text"
+                class="form-control form-control-sm"
+                style="max-width: 180px"
+                v-model="serverHost"
+                placeholder="0.0.0.0"
+              />
+              <input
+                type="number"
+                class="form-control form-control-sm"
+                style="max-width: 100px"
+                v-model.number="serverPort"
+                min="1"
+                max="65535"
+              />
+              <button type="button" class="btn btn-sm btn-outline-light" @click="saveServerListen">
+                Сохранить
+              </button>
+            </div>
+          </div>
+          <p class="vmix-broadcast-hint" v-if="serverRestartRequired">
+            Смена host/port меняет адрес, который вы даёте судьям. Нужен перезапуск node server.js.
+            Сейчас слушает {{ listenHost }}:{{ listenPort }}.
+          </p>
+          <p class="vmix-broadcast-hint" v-else>
+            Слушает {{ listenHost }}:{{ listenPort }} — от этого зависит адрес для судей.
+          </p>
+
+          <h2 class="mt-4">Настройки вещания</h2>
           <div class="vmix-broadcast-row">
             <label for="excel-export-toggle">Автосохранение в Excel</label>
             <div class="form-check form-switch">

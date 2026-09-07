@@ -434,6 +434,8 @@ Content-Type: application/json
 
 ```json
 {
+  "dataSource": "limetime",
+  "server": { "host": "0.0.0.0", "port": 3000 },
   "limetime": {
     "baseUrl": "https://services-results.limetime.io/results/get",
     "apiKey": "...",
@@ -450,6 +452,8 @@ Content-Type: application/json
 
 | Поле | Описание |
 |------|----------|
+| `dataSource` | `"limetime"` или `"http"` (`POST /api/race`) |
+| `server.host` / `server.port` | Слушать сеть; по умолчанию `0.0.0.0:3000` |
 | `limetime.apiKey` | Ключ из DevTools (заголовок `limetime-api-key`) |
 | `pollIntervalMs` | Интервал опроса, мс (5000 = 5 сек) |
 | `activeCategoryId` | Категория по умолчанию при старте |
@@ -510,6 +514,7 @@ velo/
 ├── README.md              — краткая справка
 ├── lib/
 │   ├── limetime.js        — запросы к API
+│   ├── raceAdapter.js     — POST /api/race
 │   ├── transform.js       — JSON → 7 полей, режимы
 │   ├── excelExport.js     — data.xlsx
 │   ├── vmixConfig.js      — defaults vMix

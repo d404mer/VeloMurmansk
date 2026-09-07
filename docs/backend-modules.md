@@ -36,6 +36,20 @@
 
 ---
 
+## raceAdapter.js
+
+**Назначение:** валидация и маршрутизация `POST /api/race`. Не переписывает поля — формат уже совпадает с внутренним.
+
+| Функция | Описание |
+|---------|----------|
+| `parseRacePayload(body, query, config)` | Проверяет `isSuccess` / `data[]`, резолвит событие и категорию |
+| `normalizeAthlete(raw)` | Сохраняет `id` строкой, остальное без изменений |
+| `RaceAdapterError` | `status` 400 или 422 |
+
+Категория: `body.categoryId` или `?categoryId=`, иначе `activeCategoryId`. Совпадение с `categories[].id` или `categoryGuid`. Аналогично `raceId` → `event.id` / `raceGuid`.
+
+---
+
 ## transform.js
 
 **Назначение:** Нормализация сырого массива участников в таблицы для UI, vMix и Excel.
@@ -243,6 +257,7 @@ DTO для фронтенда: eventId, raceGuid, categories с готовыми
 ```
 server.js
   ├── limetime.fetchResults
+  ├── raceAdapter.parseRacePayload
   ├── transform.transformResults
   ├── excelExport.exportDataFile
   ├── setupRoutes → configEditor, parseLimetimeUrl
@@ -263,5 +278,5 @@ vmixPush → vmixConfig
 | Новое поле в таблице | `transform.js` (COLUMNS, toRow), `excelExport.js`, `vmix.fields` |
 | Другой лимит лидеров | `transformResults(..., limit)` в server или transform |
 | Новый vMix шаблон | `vmixConfig.DEFAULT_VMIX`, `vmixPush.pushAll` |
-| Другой источник данных | замена `limetime.js`, контракт `transformResults(raw[])` сохранить |
+| Другой источник данных | `dataSource: "http"` + `lib/raceAdapter.js`; контракт `transformResults(raw[])` сохранить |
 | Редактирование frozen snapshot | пока нет — планировался `POST /api/freeze/edit` |

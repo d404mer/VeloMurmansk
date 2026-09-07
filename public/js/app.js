@@ -27,6 +27,17 @@ Vue.createApp({
       flowerCeremony: true,
       breakAfterBullet: true,
       numberTrim: 'none',
+      dataSource: 'limetime',
+      lastIngestAt: '',
+      lastIngestCount: 0,
+      ingestDebug: false,
+      serverHost: '0.0.0.0',
+      serverPort: 3000,
+      listenHost: '0.0.0.0',
+      listenPort: 3000,
+      ingestUrls: [],
+      ingestCopyStatus: '',
+      ingestCopyTimer: null,
       numberTrimOptions: [
         { value: 'none', label: 'Без изменений' },
         { value: 'tenths', label: 'Десятые' },
@@ -96,6 +107,23 @@ Vue.createApp({
       if (this.liveMode === 'live') return 'Промежуточные (live)';
       if (this.liveMode === 'final') return 'Финал';
       return 'Стартовый лист';
+    },
+    ingestUrl() {
+      if (this.ingestUrls.length) return this.ingestUrls[0];
+      const host =
+        this.listenHost === '0.0.0.0' || this.listenHost === '::'
+          ? window.location.hostname || '127.0.0.1'
+          : this.listenHost;
+      return `http://${host}:${this.listenPort}/api/race`;
+    },
+    dataSourceLabel() {
+      return this.dataSource === 'http' ? 'Приём POST' : 'Опрос Limetime';
+    },
+    serverRestartRequired() {
+      return (
+        String(this.serverHost) !== String(this.listenHost) ||
+        Number(this.serverPort) !== Number(this.listenPort)
+      );
     },
     vmixPreviewInputNames() {
       return Object.keys(this.vmixPreviewInputs).sort();
@@ -469,6 +497,80 @@ Vue.createApp({
       axios.post('/updateData').then(() => this.loadState());
     },
 
+    copyIngestUrl() {
+      const url = this.ingestUrl;
+      const done = () => {
+        this.ingestCopyStatus = 'Скопировано';
+        if (this.ingestCopyTimer) clearTimeout(this.ingestCopyTimer);
+        this.ingestCopyTimer = setTimeout(() => {
+          this.ingestCopyStatus = '';
+        }, 2000);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(url).then(done).catch(() => {
+          this.ingestCopyStatus = 'Не удалось скопировать';
+        });
+      }
+      const input = document.createElement('textarea');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      try {
+        document.execCommand('copy');
+        done();
+      } catch (_) {
+        this.ingestCopyStatus = 'Не удалось скопировать';
+      }
+      document.body.removeChild(input);
+    },
+
+    saveDataSource(value) {
+      const previous = this.dataSource;
+      this.dataSource = value === 'http' ? 'http' : 'limetime';
+      return axios
+        .post('/api/data-source', { dataSource: this.dataSource })
+        .then(() => this.loadState())
+        .catch((err) => {
+          this.dataSource = previous;
+          this.lastError =
+            err.response?.data?.error || err.message || 'Ошибка сохранения источника данных';
+        });
+    },
+
+    saveIngestDebug(enabled) {
+      const previous = this.ingestDebug;
+      this.ingestDebug = !!enabled;
+      return axios
+        .post('/api/ingest-debug', { enabled: this.ingestDebug })
+        .catch((err) => {
+          this.ingestDebug = previous;
+          this.lastError =
+            err.response?.data?.error || err.message || 'Ошибка сохранения debug JSON';
+        });
+    },
+
+    saveServerListen() {
+      return axios
+        .post('/api/server', { host: this.serverHost, port: this.serverPort })
+        .then((res) => {
+          if (res.data?.server) {
+            this.serverHost = res.data.server.host;
+            this.serverPort = res.data.server.port;
+          }
+          if (res.data?.listen) {
+            this.listenHost = res.data.listen.host;
+            this.listenPort = res.data.listen.port;
+          }
+          if (res.data?.restartRequired) {
+            this.lastError = '';
+          }
+        })
+        .catch((err) => {
+          this.lastError =
+            err.response?.data?.error || err.message || 'Ошибка сохранения адреса сервера';
+        });
+    },
+
     exportExcel() {
       axios.post('/export').then((res) => {
         if (res.data?.export) {
@@ -653,6 +755,23 @@ Vue.createApp({
         if (res.data.numberTrim != null) {
           this.numberTrim = res.data.numberTrim;
         }
+        if (res.data.dataSource) {
+          this.dataSource = res.data.dataSource;
+        }
+        this.lastIngestAt = res.data.lastIngestAt || '';
+        this.lastIngestCount = res.data.lastIngestCount ?? 0;
+        if (res.data.ingestDebug != null) {
+          this.ingestDebug = !!res.data.ingestDebug;
+        }
+        if (res.data.server) {
+          this.serverHost = res.data.server.host || this.serverHost;
+          this.serverPort = Number(res.data.server.port) || this.serverPort;
+        }
+        if (res.data.listen) {
+          this.listenHost = res.data.listen.host || this.listenHost;
+          this.listenPort = Number(res.data.listen.port) || this.listenPort;
+        }
+        this.ingestUrls = Array.isArray(res.data.ingestUrls) ? res.data.ingestUrls : [];
       });
     },
 

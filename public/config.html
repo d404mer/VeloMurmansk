@@ -15,7 +15,14 @@
     .status-msg { margin-top: 16px; }
     .status-error { color: #ff8a8a; }
     .status-ok { color: #8aff8a; }
-    label { margin-bottom: 4px; font-size: 14px; color: #ccc; }
+    .setup-section {
+      margin-bottom: 28px;
+      padding: 16px;
+      border: 1px solid #444;
+      border-radius: 8px;
+    }
+    .setup-section h2 { font-size: 18px; margin: 0 0 12px; }
+    .setup-hint { font-size: 13px; color: #aaa; margin: 8px 0 0; }
   </style>
 </head>
 <body id="app" v-cloak>
@@ -26,8 +33,70 @@
     </div>
 
     <p class="text-muted mb-4">
+      Вы даёте судьям адрес ниже. Они отправляют JSON, приложение принимает его само.
+      Опрос Limetime — запасной режим.
+    </p>
+
+    <div class="setup-section">
+      <h2>Приём данных</h2>
+      <div class="mb-3">
+        <label>Адрес для судей</label>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <code style="color:#8aff8a; font-size: 15px; word-break: break-all;">{{ ingestUrl }}</code>
+          <button type="button" class="btn btn-sm btn-outline-light" @click="copyIngestUrl">Копировать</button>
+          <span v-if="ingestCopyStatus">{{ ingestCopyStatus }}</span>
+        </div>
+        <p class="setup-hint">
+          Content-Type: application/json · POST. ПК судей в той же сети; в Windows Firewall откройте TCP-порт.
+        </p>
+        <p class="setup-hint" v-if="ingestUrls.length > 1">Также: {{ ingestUrls.slice(1).join(', ') }}</p>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="data-source-select">Режим</label>
+          <select id="data-source-select" class="form-select" v-model="dataSource">
+            <option value="http">Приём POST от судей</option>
+            <option value="limetime">Опрос Limetime (запасной)</option>
+          </select>
+        </div>
+        <div class="col-md-6 mb-3 d-flex align-items-end">
+          <div class="form-check form-switch">
+            <input
+              id="ingest-debug-toggle"
+              class="form-check-input"
+              type="checkbox"
+              role="switch"
+              v-model="ingestDebug"
+            />
+            <label class="form-check-label" for="ingest-debug-toggle">Сохранять последний JSON</label>
+          </div>
+        </div>
+      </div>
+      <p class="setup-hint" v-if="ingestDebug">Файл: <code>debug/last-race.json</code></p>
+
+      <div class="row mt-3">
+        <div class="col-md-8 mb-3">
+          <label>Адрес прослушивания (host)</label>
+          <input type="text" class="form-control" v-model="serverHost" placeholder="0.0.0.0">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label>Порт</label>
+          <input type="number" class="form-control" v-model.number="serverPort" min="1" max="65535">
+        </div>
+      </div>
+      <p class="setup-hint" v-if="serverRestartRequired">
+        Смена host/port применяется после перезапуска <code>node server.js</code>.
+        Сейчас процесс слушает <code>{{ listenHost }}:{{ listenPort }}</code>.
+      </p>
+    </div>
+
+    <p class="text-muted mb-4" v-if="dataSource === 'limetime'">
       Вставьте Limetime-ссылки для каждой категории. Формат:
       <code>.../results/get/{raceGuid}/{stageGuid}/{categoryGuid}</code>
+    </p>
+    <p class="text-muted mb-4" v-else>
+      Названия и ID категорий используются для панели и <code>categoryId</code> в POST.
+      Limetime-ссылки необязательны.
     </p>
 
     <div class="row mb-4">
@@ -55,7 +124,7 @@
           <label>ID</label>
           <input type="text" class="form-control" v-model="cat.id">
         </div>
-        <div class="col-md-7 mb-2">
+        <div class="col-md-7 mb-2" v-if="dataSource === 'limetime'">
           <label>Limetime URL</label>
           <input
             type="text"
@@ -67,8 +136,8 @@
           >
         </div>
       </div>
-      <div v-if="cat.parseError" class="preview preview-error">{{ cat.parseError }}</div>
-      <div v-else-if="cat.stageGuid" class="preview preview-ok">
+      <div v-if="dataSource === 'limetime' && cat.parseError" class="preview preview-error">{{ cat.parseError }}</div>
+      <div v-else-if="dataSource === 'limetime' && cat.stageGuid" class="preview preview-ok">
         stageGuid: {{ cat.stageGuid }} · categoryGuid: {{ cat.categoryGuid }}
       </div>
     </div>

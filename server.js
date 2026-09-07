@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const express = require('express');
 const { ConnectionTCP } = require('node-vmix');
 const { fetchResults } = require('./lib/limetime');
@@ -11,11 +12,12 @@ const { createVmixPusher, buildVmixPayload, groupPayloadByInput } = require('./l
 const { buildPlaquesView, applyPlaquesToConfig, AVAILABLE_SOURCE_FIELDS, DEFAULT_FIELD_MAPPING } = require('./lib/vmixPlaques');
 const { getTemplatesView, validateTemplatesUpdate, applyTemplatesUpdate } = require('./lib/vmixTemplates');
 const { resolveVmixConfig, normalizeNumberTrim } = require('./lib/vmixConfig');
-const { buildSetupView } = require('./lib/configEditor');
+const { buildSetupView, applyIngestSettings } = require('./lib/configEditor');
+const { parseRacePayload, RaceAdapterError } = require('./lib/raceAdapter');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
-const PORT = process.env.PORT || '3000';
+const DEBUG_DUMP_PATH = path.join(__dirname, 'debug', 'last-race.json');
 
 let configMtimeMs = 0;
 
@@ -32,7 +34,7 @@ function readConfigFile() {
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 let config = readConfigFile();
 let connection = null;
@@ -46,12 +48,17 @@ const lapTracker = createLapTracker();
 const sseClients = [];
 let replayTimer = null;
 let lastCategoryResults = new Map();
+let lastIngestAt = null;
+let lastIngestCount = 0;
+let lastIngestCategoryId = null;
+let actualListen = { host: '0.0.0.0', port: 3000 };
 
 const vmixPusher = createVmixPusher(() => ({
   connected: vmixConnected,
   client: connection,
-  onError: () => {
+  onError: (err) => {
     vmixConnected = false;
+    console.error('[vmix] error', err?.message || err);
   },
 }));
 
@@ -178,6 +185,69 @@ function getActiveCategory(event) {
   return event.categories.find((c) => c.id === config.activeCategoryId);
 }
 
+function getDataSource() {
+  return config.dataSource === 'http' ? 'http' : 'limetime';
+}
+
+function isHttpSource() {
+  return getDataSource() === 'http';
+}
+
+function getListenConfig() {
+  const host = process.env.HOST || config.server?.host || '0.0.0.0';
+  const port = Number(process.env.PORT || config.server?.port || 3000);
+  return { host, port: Number.isFinite(port) && port > 0 ? port : 3000 };
+}
+
+function getActualListen() {
+  return { ...actualListen };
+}
+
+function listLanIPv4() {
+  const ips = [];
+  const ifaces = os.networkInterfaces();
+  for (const addrs of Object.values(ifaces || {})) {
+    for (const addr of addrs || []) {
+      const family = addr.family;
+      if (family !== 'IPv4' && family !== 4) continue;
+      if (addr.internal) continue;
+      const ip = addr.address;
+      if (!ip || ip === '127.0.0.1') continue;
+      if (ip.startsWith('169.254.')) continue;
+      ips.push(ip);
+    }
+  }
+  const rank = (ip) => {
+    if (ip.startsWith('192.168.')) return 3;
+    if (ip.startsWith('10.')) return 2;
+    const parts = ip.split('.').map(Number);
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return 1;
+    return 0;
+  };
+  return [...new Set(ips)].sort((a, b) => rank(b) - rank(a) || a.localeCompare(b));
+}
+
+function getIngestUrls() {
+  const { host, port } = getActualListen();
+  const ips =
+    host && host !== '0.0.0.0' && host !== '::' ? [host] : listLanIPv4();
+  return ips.map((ip) => `http://${ip}:${port}/api/race`);
+}
+
+function isRaceDebugEnabled() {
+  return process.env.RACE_DEBUG === '1' || config.ingest?.debug === true;
+}
+
+function dumpLastRacePayload(payload) {
+  if (!isRaceDebugEnabled()) return;
+  try {
+    fs.mkdirSync(path.dirname(DEBUG_DUMP_PATH), { recursive: true });
+    fs.writeFileSync(DEBUG_DUMP_PATH, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  } catch (err) {
+    console.warn('[race] debug dump failed:', err.message || err);
+  }
+}
+
 function initVmix() {
   if (connection) return;
   connection = new ConnectionTCP(config.vmix?.host || 'localhost');
@@ -229,6 +299,9 @@ function pushResultsToVmix(data, categoryResults) {
 }
 
 async function fetchCategoryRaw(event, category) {
+  if (isHttpSource()) {
+    throw new Error('Limetime disabled (dataSource=http)');
+  }
   return fetchResults(
     config.limetime,
     event.raceGuid,
@@ -237,9 +310,94 @@ async function fetchCategoryRaw(event, category) {
   );
 }
 
-async function fetchCategoryData(event, category) {
-  const raw = await fetchCategoryRaw(event, category);
-  return { raw, transformed: transformResults(raw) };
+async function applyCategoryRaw(categoryId, rawAthletes, { skipExcel = false } = {}) {
+  const event = getActiveEvent();
+  const category = event?.categories.find((c) => c.id === categoryId);
+  if (!event || !category) {
+    throw new Error(`Category not found: ${categoryId}`);
+  }
+
+  const transformed = transformResults(rawAthletes);
+  lastCategoryResults.set(categoryId, transformed);
+
+  const isActive = categoryId === config.activeCategoryId;
+  if (isActive) {
+    raceData = {
+      ...transformed,
+      lastUpdated: new Date().toISOString(),
+      lastError: null,
+      lastExport: raceData.lastExport,
+    };
+    if (dataFrozen && frozenSnapshot) {
+      frozenSnapshot.lastExport = raceData.lastExport;
+    }
+    pushResultsToVmix(getDisplayData(), lastCategoryResults);
+  }
+
+  if (!dataFrozen) {
+    const result = lapTracker.processRawAthletes(
+      categoryId,
+      rawAthletes,
+      getCategoryTotalLaps(category),
+      getLapsMode()
+    );
+    if (isActive) {
+      handleLapPollResult(categoryId, result);
+    }
+  }
+
+  if (!skipExcel && isExcelExportEnabled()) {
+    await saveExcel(event, lastCategoryResults);
+    if (isActive && dataFrozen && frozenSnapshot) {
+      frozenSnapshot.lastExport = raceData.lastExport;
+    }
+  }
+
+  return transformed;
+}
+
+function extractRawAthletes(transformed) {
+  const list = transformed?.displayList?.length
+    ? transformed.displayList
+    : transformed?.startList || [];
+  return list.map((row) => row.raw).filter(Boolean);
+}
+
+function showCachedActiveCategory() {
+  const event = getActiveEvent();
+  const activeCategory = getActiveCategory(event);
+  if (!event || !activeCategory) {
+    raceData.lastError = 'Event or category not found in config';
+    return raceData;
+  }
+
+  const cached = lastCategoryResults.get(activeCategory.id);
+  if (cached) {
+    raceData = {
+      ...cached,
+      lastUpdated: raceData.lastUpdated,
+      lastError: null,
+      lastExport: raceData.lastExport,
+    };
+    const raw = extractRawAthletes(cached);
+    if (raw.length && !dataFrozen) {
+      const result = lapTracker.processRawAthletes(
+        activeCategory.id,
+        raw,
+        getCategoryTotalLaps(activeCategory),
+        getLapsMode()
+      );
+      handleLapPollResult(activeCategory.id, result);
+    }
+  } else {
+    raceData = {
+      ...emptyRaceData(),
+      lastExport: raceData.lastExport,
+      lastUpdated: raceData.lastUpdated,
+    };
+  }
+  pushResultsToVmix(getDisplayData(), lastCategoryResults);
+  return raceData;
 }
 
 function resolveCategoryId(requestedId) {
@@ -454,6 +612,9 @@ async function saveExcel(event, categoryResults) {
 }
 
 async function refreshData() {
+  if (isHttpSource()) {
+    return showCachedActiveCategory();
+  }
   if (isFetching) return raceData;
   isFetching = true;
 
@@ -465,65 +626,52 @@ async function refreshData() {
     return raceData;
   }
 
-  const categoryResults = new Map();
-
   try {
-    const categoryRaw = new Map();
-
-    await Promise.all(
+    const fetched = await Promise.all(
       event.categories.map(async (category) => {
+        if (isHttpSource()) return { category, raw: null };
         try {
-          const { raw, transformed } = await fetchCategoryData(event, category);
-          categoryRaw.set(category.id, raw);
-          categoryResults.set(category.id, transformed);
+          const raw = await fetchCategoryRaw(event, category);
+          return { category, raw };
         } catch (err) {
+          if (isHttpSource()) return { category, raw: null };
           console.error(`${category.name}: ${err.message || err}`);
+          return { category, raw: null };
         }
       })
     );
 
-    const activeData = categoryResults.get(activeCategory.id);
-    const activeRaw = categoryRaw.get(activeCategory.id);
-    if (activeData) {
-      raceData = {
-        ...activeData,
-        lastUpdated: new Date().toISOString(),
-        lastError: null,
-        lastExport: raceData.lastExport,
-      };
+    if (isHttpSource()) {
+      return showCachedActiveCategory();
+    }
 
-      if (dataFrozen && frozenSnapshot) {
-        frozenSnapshot.lastExport = raceData.lastExport;
-      }
+    let appliedActive = false;
+    for (const { category, raw } of fetched) {
+      if (!raw) continue;
+      if (isHttpSource()) break;
+      await applyCategoryRaw(category.id, raw, { skipExcel: true });
+      if (category.id === activeCategory.id) appliedActive = true;
+    }
 
-      lastCategoryResults = categoryResults;
-      pushResultsToVmix(getDisplayData(), categoryResults);
+    if (isHttpSource()) {
+      return showCachedActiveCategory();
+    }
 
-      if (!dataFrozen) {
-        for (const category of event.categories) {
-          const raw = categoryRaw.get(category.id);
-          if (!raw) continue;
-          const result = lapTracker.processRawAthletes(
-            category.id,
-            raw,
-            getCategoryTotalLaps(category),
-            getLapsMode()
-          );
-          if (category.id === activeCategory.id) {
-            handleLapPollResult(category.id, result);
-          }
-        }
-      }
-    } else {
+    if (!appliedActive) {
       raceData.lastError = `Failed to load ${activeCategory.name}`;
     }
 
     if (isExcelExportEnabled()) {
-      await saveExcel(event, categoryResults);
+      await saveExcel(event, lastCategoryResults);
+      if (dataFrozen && frozenSnapshot) {
+        frozenSnapshot.lastExport = raceData.lastExport;
+      }
     }
   } catch (err) {
-    console.error(err.message || err);
-    raceData.lastError = err.message || String(err);
+    if (!isHttpSource()) {
+      console.error(err.message || err);
+      raceData.lastError = err.message || String(err);
+    }
   } finally {
     isFetching = false;
   }
@@ -531,20 +679,38 @@ async function refreshData() {
   return raceData;
 }
 
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
 function startPolling() {
-  if (pollTimer) clearInterval(pollTimer);
+  stopPolling();
+  if (isHttpSource()) {
+    console.log('[race] Limetime poll stopped');
+    return;
+  }
   pollTimer = setInterval(refreshData, config.pollIntervalMs || 5000);
+  console.log(`[race] Limetime poll every ${config.pollIntervalMs || 5000} ms`);
 }
 
 async function onConfigSaved() {
   syncLapTrackerFromConfig();
   startPolling();
+  if (isHttpSource()) {
+    showCachedActiveCategory();
+    return;
+  }
   await refreshData();
 }
 
 app.use(
   createSetupRoutes({
     getConfig: () => config,
+    getListenConfig: getActualListen,
+    getIngestUrls,
     beginConfigUpdate: reloadConfigFromDisk,
     saveConfig,
     onConfigSaved,
@@ -592,7 +758,77 @@ app.get('/api/config', (req, res) => {
     flowerCeremony: isFlowerCeremony(),
     breakAfterBullet: isBreakAfterBullet(),
     numberTrim: getNumberTrim(),
+    dataSource: getDataSource(),
+    ingestDebug: config.ingest?.debug === true,
+    server: {
+      host: config.server?.host || '0.0.0.0',
+      port: Number(config.server?.port) || 3000,
+    },
+    listen: getActualListen(),
+    ingestUrls: getIngestUrls(),
+    lastIngestAt,
+    lastIngestCount,
   });
+});
+
+app.get('/api/race', (req, res) => {
+  const { host, port } = getActualListen();
+  res.json({
+    success: true,
+    dataSource: getDataSource(),
+    lastIngestAt,
+    lastCount: lastIngestCount,
+    lastCategoryId: lastIngestCategoryId,
+    lastUpdated: raceData.lastUpdated,
+    listen: { host, port },
+    ingestUrls: getIngestUrls(),
+  });
+});
+
+app.post('/api/race', async (req, res) => {
+  const receivedAt = new Date().toISOString();
+  try {
+    const parsed = parseRacePayload(req.body, req.query, config);
+    console.log(`[race] ${receivedAt} category=${parsed.categoryId} count=${parsed.count}`);
+
+    if (parsed.count === 0 && lastCategoryResults.has(parsed.categoryId)) {
+      lastIngestAt = receivedAt;
+      lastIngestCount = 0;
+      lastIngestCategoryId = parsed.categoryId;
+      dumpLastRacePayload(req.body);
+      console.log(`[race] empty payload kept previous state for ${parsed.categoryId}`);
+      res.json({
+        success: true,
+        categoryId: parsed.categoryId,
+        count: lastCategoryResults.get(parsed.categoryId)?.rawCount ?? 0,
+        skipped: 'empty',
+      });
+      return;
+    }
+
+    await applyCategoryRaw(parsed.categoryId, parsed.athletes);
+    lastIngestAt = receivedAt;
+    lastIngestCount = parsed.count;
+    lastIngestCategoryId = parsed.categoryId;
+    dumpLastRacePayload(req.body);
+    console.log(
+      `[race] ok category=${parsed.categoryId} count=${parsed.count} updated=${raceData.lastUpdated}`
+    );
+    res.json({
+      success: true,
+      categoryId: parsed.categoryId,
+      count: parsed.count,
+    });
+  } catch (err) {
+    if (err instanceof RaceAdapterError) {
+      console.warn(`[race] validation ${err.status}: ${err.message}`);
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    console.error('[race] processing error', err.message || err);
+    raceData.lastError = err.message || String(err);
+    res.status(500).json({ success: false, error: err.message || String(err) });
+  }
 });
 
 app.post('/api/freeze', (req, res) => {
@@ -641,9 +877,80 @@ app.post('/sheet1', (req, res) => {
 app.post('/export', async (req, res) => {
   try {
     await refreshData();
+    if (isHttpSource()) {
+      const event = getActiveEvent();
+      if (event) {
+        await saveExcel(event, lastCategoryResults);
+      }
+    }
     res.json({ ok: true, export: raceData.lastExport });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+
+app.post('/api/data-source', async (req, res) => {
+  const requested = req.body?.dataSource;
+  if (requested !== 'limetime' && requested !== 'http') {
+    res.status(400).json({ ok: false, error: 'dataSource must be "limetime" or "http"' });
+    return;
+  }
+  try {
+    updateConfig((cfg) => {
+      applyIngestSettings(cfg, { dataSource: requested });
+    }, 'data-source');
+    startPolling();
+    if (isHttpSource()) {
+      showCachedActiveCategory();
+    } else {
+      await refreshData();
+    }
+    res.json({ ok: true, dataSource: getDataSource() });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message || String(err) });
+  }
+});
+
+app.post('/api/ingest-debug', (req, res) => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ ok: false, error: 'enabled must be a boolean' });
+    return;
+  }
+  try {
+    updateConfig((cfg) => {
+      applyIngestSettings(cfg, { ingestDebug: enabled });
+    }, 'ingest-debug');
+    res.json({ ok: true, ingestDebug: config.ingest?.debug === true });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message || String(err) });
+  }
+});
+
+app.post('/api/server', (req, res) => {
+  const host = req.body?.host;
+  const port = req.body?.port;
+  if (host == null && port == null) {
+    res.status(400).json({ ok: false, error: 'Expected host and/or port' });
+    return;
+  }
+  try {
+    updateConfig((cfg) => {
+      applyIngestSettings(cfg, { server: { host, port } });
+    }, 'server');
+    const nextHost = config.server?.host || '0.0.0.0';
+    const nextPort = Number(config.server?.port) || 3000;
+    const nextListen = getListenConfig();
+    const current = getActualListen();
+    const restartRequired = current.host !== nextListen.host || current.port !== nextListen.port;
+    res.json({
+      ok: true,
+      server: { host: nextHost, port: nextPort },
+      listen: current,
+      restartRequired,
+    });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message || String(err) });
   }
 });
 
@@ -1038,11 +1345,29 @@ app.post('/vmixCommand', (req, res) => {
   res.send('ok');
 });
 
+app.use((err, req, res, next) => {
+  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError)) {
+    console.warn('[race] invalid JSON', err.message || err);
+    res.status(400).json({ success: false, error: 'Invalid JSON' });
+    return;
+  }
+  next(err);
+});
+
 initVmix();
 syncLapTrackerFromConfig();
-refreshData().then(() => {
+const listen = getListenConfig();
+actualListen = listen;
+const boot = isHttpSource() ? Promise.resolve() : refreshData();
+boot.then(() => {
   startPolling();
-  app.listen(PORT, () => {
-    console.log(`Limetime parser running on http://localhost:${PORT}`);
+  app.listen(listen.port, listen.host, () => {
+    console.log(`VELO running on http://${listen.host}:${listen.port}`);
+    const urls = getIngestUrls();
+    if (urls.length) {
+      console.log(`[race] адрес для судей: ${urls.join(', ')}`);
+    } else {
+      console.log(`[race] dataSource=${getDataSource()} POST /api/race`);
+    }
   });
 });

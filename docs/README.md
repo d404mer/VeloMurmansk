@@ -15,15 +15,15 @@
 
 ```
 Limetime API  ──poll──►  server.js  ──►  transform.js  ──►  raceData
-                              │                              │
-                              ├──►  lapTracker.js  ──►  /laps (Browser Source)
-                              ├──►  vmixPush.js  ──TCP──►  vMix (diff-кэш SetText)
-                              └──►  excelExport.js  ──►  exports/data.xlsx (если excelExportEnabled)
+Судьи POST /api/race ──┘                 │
+                                         ├──►  lapTracker.js  ──►  /laps
+                                         ├──►  vmixPush.js  ──TCP──►  vMix
+                                         └──►  excelExport.js  ──►  exports/data.xlsx
 ```
 
 **Стек:** Node.js, Express, Vue 3 (CDN), axios, node-vmix, ExcelJS.
 
-**Точка входа:** `server.js` — HTTP на порту `3000` (или `PORT`).
+**Точка входа:** `server.js` — HTTP на `0.0.0.0:3000` (или `server.port` / `PORT`).
 
 **Конфигурация:** `config.json` + API/UI без рестарта для vMix, laps, Excel toggle.
 
@@ -40,6 +40,8 @@ Limetime API  ──poll──►  server.js  ──►  transform.js  ──►
 | Метод | Путь | Назначение |
 |-------|------|------------|
 | GET | `/api/config` | Состояние UI, lapsMode, excelExportEnabled |
+| POST | `/api/data-source` | Limetime poll или HTTP POST |
+| GET/POST | `/api/race` | Статус ingest / приём JSON судей |
 | POST | `/api/freeze` | Заморозка vMix и плашек |
 | POST | `/api/excel-export` | Вкл/выкл автосохранения Excel |
 | POST | `/api/laps/mode` | Режим отсечек `leader` / `all` |

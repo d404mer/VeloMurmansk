@@ -4,13 +4,65 @@ Vue.createApp({
       eventId: '',
       eventName: '',
       raceGuid: '',
+      dataSource: 'limetime',
+      ingestDebug: false,
+      serverHost: '0.0.0.0',
+      serverPort: 3000,
+      listenHost: '0.0.0.0',
+      listenPort: 3000,
+      ingestUrls: [],
+      ingestCopyStatus: '',
+      ingestCopyTimer: null,
       categories: [],
       saving: false,
       statusMessage: '',
       statusOk: false,
     };
   },
+  computed: {
+    ingestUrl() {
+      if (this.ingestUrls.length) return this.ingestUrls[0];
+      const host =
+        this.listenHost === '0.0.0.0' || this.listenHost === '::'
+          ? window.location.hostname || '127.0.0.1'
+          : this.listenHost;
+      return `http://${host}:${this.listenPort}/api/race`;
+    },
+    serverRestartRequired() {
+      return (
+        String(this.serverHost) !== String(this.listenHost) ||
+        Number(this.serverPort) !== Number(this.listenPort)
+      );
+    },
+  },
   methods: {
+    copyIngestUrl() {
+      const url = this.ingestUrl;
+      const done = () => {
+        this.ingestCopyStatus = 'Скопировано';
+        if (this.ingestCopyTimer) clearTimeout(this.ingestCopyTimer);
+        this.ingestCopyTimer = setTimeout(() => {
+          this.ingestCopyStatus = '';
+        }, 2000);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(url).then(done).catch(() => {
+          this.ingestCopyStatus = 'Не удалось скопировать';
+        });
+      }
+      const input = document.createElement('textarea');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      try {
+        document.execCommand('copy');
+        done();
+      } catch (_) {
+        this.ingestCopyStatus = 'Не удалось скопировать';
+      }
+      document.body.removeChild(input);
+    },
+
     emptyCategory(overrides = {}) {
       return {
         id: '',
@@ -35,6 +87,13 @@ Vue.createApp({
       this.eventId = data.eventId;
       this.eventName = data.eventName;
       this.raceGuid = data.raceGuid;
+      this.dataSource = data.dataSource === 'http' ? 'http' : 'limetime';
+      this.ingestDebug = !!data.ingestDebug;
+      this.serverHost = data.server?.host || '0.0.0.0';
+      this.serverPort = Number(data.server?.port) || 3000;
+      this.listenHost = data.listen?.host || this.serverHost;
+      this.listenPort = Number(data.listen?.port) || this.serverPort;
+      this.ingestUrls = Array.isArray(data.ingestUrls) ? data.ingestUrls : [];
       this.categories = data.categories.map((cat) =>
         this.emptyCategory({
           id: cat.id,
@@ -114,6 +173,12 @@ Vue.createApp({
         const res = await axios.post('/api/setup', {
           eventId: this.eventId,
           eventName: this.eventName,
+          dataSource: this.dataSource,
+          ingestDebug: this.ingestDebug,
+          server: {
+            host: this.serverHost,
+            port: this.serverPort,
+          },
           categories: this.categories.map((cat) => ({
             id: cat.id,
             name: cat.name,
@@ -127,8 +192,17 @@ Vue.createApp({
         }
 
         this.statusOk = true;
-        this.statusMessage = 'Настройки сохранены. Данные обновляются...';
+        this.statusMessage = this.serverRestartRequired
+          ? 'Настройки сохранены. Перезапустите node server.js, чтобы сменить host/port.'
+          : 'Настройки сохранены. Данные обновляются...';
         this.raceGuid = res.data.data.raceGuid;
+        if (res.data.data.listen) {
+          this.listenHost = res.data.data.listen.host;
+          this.listenPort = res.data.data.listen.port;
+        }
+        if (Array.isArray(res.data.data.ingestUrls)) {
+          this.ingestUrls = res.data.data.ingestUrls;
+        }
       } catch (err) {
         this.statusMessage = err.response?.data?.error || err.message || 'Ошибка сохранения';
       } finally {

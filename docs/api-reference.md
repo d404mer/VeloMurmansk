@@ -1,6 +1,6 @@
 # Справочник HTTP API
 
-Базовый URL: `http://localhost:3000` (или переменная окружения `PORT`).
+Базовый URL: `http://<хост>:3000` (или `server.port` / `PORT`). Сервер по умолчанию слушает `0.0.0.0`.
 
 Статика: каталог `public/` — HTML, JS, CSS без префикса `/api`.
 
@@ -60,16 +60,91 @@
   },
   "totalLaps": 6,
   "lapsMode": "leader",
-  "excelExportEnabled": false
+  "excelExportEnabled": false,
+  "dataSource": "limetime",
+  "lastIngestAt": null,
+  "lastIngestCount": 0
 }
 ```
 
 | Поле | Примечание |
 |------|------------|
 | `mode` | Режим **отображаемых** данных (с учётом freeze) |
-| `liveMode` | Режим последнего poll (всегда актуальный) |
+| `liveMode` | Режим последнего poll / ingest (всегда актуальный) |
 | `excelExportEnabled` | `true`, если `config.excelExportEnabled !== false` |
 | `lapsMode` | `"leader"` или `"all"` |
+| `dataSource` | `"limetime"` или `"http"` |
+| `ingestDebug` | Писать последний POST в `debug/last-race.json` |
+| `ingestUrls` | LAN-адреса `POST /api/race` для судей |
+| `lastIngestAt` / `lastIngestCount` | Последний успешный `POST /api/race` |
+
+---
+
+### POST `/api/data-source`
+
+Переключение источника без рестарта.
+
+**Тело:** `{ "dataSource": "limetime" | "http" }`
+
+**Ответ:** `{ "ok": true, "dataSource": "http" }`
+
+В режиме `http` Limetime-poll останавливается.
+
+### POST `/api/ingest-debug`
+
+**Тело:** `{ "enabled": true }`
+
+**Ответ:** `{ "ok": true, "ingestDebug": true }`
+
+### POST `/api/server`
+
+Host/port из `config.server`. Применяется после перезапуска процесса.
+
+**Тело:** `{ "host": "0.0.0.0", "port": 3000 }`
+
+**Ответ:** `{ "ok": true, "server", "listen", "restartRequired" }`
+
+---
+
+## Приём данных судей (`/api/race`)
+
+### GET `/api/race`
+
+Проверка доступности. Поле `ingestUrls` — адреса, которые вы даёте судьям (LAN IP, не localhost).
+
+```json
+{
+  "success": true,
+  "dataSource": "http",
+  "lastIngestAt": "2026-08-28T15:00:00.000Z",
+  "lastCount": 12,
+  "lastCategoryId": "men",
+  "lastUpdated": "2026-08-28T15:00:00.000Z",
+  "listen": { "host": "0.0.0.0", "port": 3000 },
+  "ingestUrls": ["http://192.168.1.100:3000/api/race"]
+}
+```
+
+### POST `/api/race`
+
+Судейская система **отправляет** JSON сюда (`Content-Type: application/json`). Приложение принимает пакет, само никуда за результатами не ходит.
+
+Тело: `{ "isSuccess": true, "data": [ /* участники */ ] }`.
+
+Опционально: `categoryId`, `raceId` в теле или query (`?categoryId=men`). Без них — активная категория/событие из `config.json`. `categoryId` резолвится в `categories[].id` или `categories[].categoryGuid`.
+
+Пример: [samples/race-post.json](./samples/race-post.json).
+
+| Код | Когда |
+|-----|--------|
+| 200 | `{ "success": true, "categoryId", "count" }` |
+| 400 | Битый JSON или `data` не массив |
+| 422 | `isSuccess !== true` или неизвестные `categoryId` / `raceId` |
+| 500 | Ошибка обработки (в лог `[race]`) |
+
+Пустой `data: []` при уже загруженной категории: **200**, предыдущее состояние не очищается.
+
+В режиме `config.dataSource = "http"` Limetime-poll не запускается.
 
 ---
 
