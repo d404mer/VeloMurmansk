@@ -15,11 +15,10 @@ const { getTemplatesView, validateTemplatesUpdate, applyTemplatesUpdate } = requ
 const { resolveVmixConfig, normalizeNumberTrim } = require('./lib/vmixConfig');
 const { buildSetupView, applyIngestSettings } = require('./lib/configEditor');
 const { parseRacePayload, RaceAdapterError } = require('./lib/raceAdapter');
+const ingestStore = require('./lib/ingestStore');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
-const DEBUG_DUMP_PATH = path.join(__dirname, 'debug', 'last-race.json');
-const INGEST_CACHE_PATH = path.join(__dirname, 'debug', 'ingest-cache.json');
 
 let configMtimeMs = 0;
 
@@ -306,66 +305,9 @@ function isRaceDebugEnabled() {
   return process.env.RACE_DEBUG === '1' || config.ingest?.debug === true;
 }
 
-function writeJsonAtomic(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmpPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  fs.renameSync(tmpPath, filePath);
-}
-
-function readJsonIfExists(filePath) {
-  try {
-    if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch (err) {
-    console.warn(`[race] failed to read ${path.basename(filePath)}:`, err.message || err);
-    return null;
-  }
-}
-
-function persistIngestSnapshot(lastPayload) {
-  try {
-    const categories = {};
-    for (const [categoryId, athletes] of lastCategoryRaw) {
-      categories[categoryId] = athletes;
-    }
-    writeJsonAtomic(INGEST_CACHE_PATH, {
-      savedAt: new Date().toISOString(),
-      lastUpdated: raceData.lastUpdated,
-      lastIngestAt,
-      lastIngestCount,
-      lastIngestCategoryId,
-      categories,
-    });
-    if (lastPayload != null) {
-      writeJsonAtomic(DEBUG_DUMP_PATH, lastPayload);
-    }
-  } catch (err) {
-    console.warn('[race] persist failed:', err.message || err);
-  }
-}
-
-function dumpLastRacePayload(payload) {
-  persistIngestSnapshot(payload);
-}
-
-function ingestAthletesFromLegacyDump(dump) {
-  if (!dump || typeof dump !== 'object' || Array.isArray(dump)) return null;
-  if (dump.isSuccess === true && Array.isArray(dump.data)) {
-    const categoryId = dump.categoryId || config.activeCategoryId;
-    if (!categoryId) return null;
-    return { categories: { [categoryId]: dump.data }, lastIngestCategoryId: categoryId };
-  }
-  if (dump.categories && typeof dump.categories === 'object') return dump;
-  return null;
-}
-
 async function restoreIngestSnapshot() {
-  const cache = ingestAthletesFromLegacyDump(readJsonIfExists(INGEST_CACHE_PATH))
-    || ingestAthletesFromLegacyDump(readJsonIfExists(DEBUG_DUMP_PATH));
-  if (!cache?.categories) return;
-
-  const entries = Object.entries(cache.categories).filter(([, athletes]) => Array.isArray(athletes));
+  const cache = ingestStore.loadAll();
+  const entries = Object.entries(cache.categories || {}).filter(([, athletes]) => Array.isArray(athletes));
   if (!entries.length) return;
 
   if (cache.lastIngestAt) lastIngestAt = cache.lastIngestAt;
@@ -386,14 +328,14 @@ async function restoreIngestSnapshot() {
   if (cache.lastUpdated && raceData.rawCount) {
     raceData.lastUpdated = cache.lastUpdated;
   }
-  if (!lastIngestAt && cache.savedAt) lastIngestAt = cache.savedAt;
+  if (!lastIngestAt) lastIngestAt = cache.lastIngestAt;
   if (!lastIngestCount && restored) {
     lastIngestCount = lastCategoryResults.get(config.activeCategoryId)?.rawCount
       || lastCategoryResults.get(lastIngestCategoryId)?.rawCount
       || 0;
   }
 
-  console.log(`[race] restored ${restored} categor${restored === 1 ? 'y' : 'ies'} from disk`);
+  console.log(`[race] restored ${restored} categor${restored === 1 ? 'y' : 'ies'} from data/ingest`);
 }
 
 function vmixHost() {
@@ -990,12 +932,11 @@ app.post('/api/race', async (req, res) => {
     const parsed = parseRacePayload(req.body, req.query, config);
     console.log(`[race] ${receivedAt} category=${parsed.categoryId} count=${parsed.count}`);
 
-    if (parsed.count === 0 && lastCategoryResults.has(parsed.categoryId)) {
+    if (parsed.count === 0) {
       lastIngestAt = receivedAt;
       lastIngestCount = 0;
       lastIngestCategoryId = parsed.categoryId;
-      dumpLastRacePayload(req.body);
-      console.log(`[race] empty payload kept previous state for ${parsed.categoryId}`);
+      console.log(`[race] empty payload skipped for ${parsed.categoryId} (memory and files unchanged)`);
       res.json({
         success: true,
         categoryId: parsed.categoryId,
@@ -1009,9 +950,16 @@ app.post('/api/race', async (req, res) => {
     lastIngestAt = receivedAt;
     lastIngestCount = parsed.count;
     lastIngestCategoryId = parsed.categoryId;
-    dumpLastRacePayload(req.body);
+    const saved = ingestStore.saveCategoryAthletes(parsed.categoryId, parsed.athletes);
+    ingestStore.saveState({
+      lastIngestAt,
+      lastIngestCount,
+      lastIngestCategoryId,
+      lastUpdated: raceData.lastUpdated,
+      categoryIds: ingestStore.listSavedCategoryIds(),
+    });
     console.log(
-      `[race] ok category=${parsed.categoryId} count=${parsed.count} updated=${raceData.lastUpdated}`
+      `[race] ok category=${parsed.categoryId} count=${parsed.count} disk=${saved.written ? 'saved' : saved.reason} updated=${raceData.lastUpdated}`
     );
     res.json({
       success: true,

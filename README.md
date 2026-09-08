@@ -1,42 +1,97 @@
-# VELO Limetime
+# VELO Murmansk
 
-Приложение для трансляции велогонок: опрос Limetime API, панель оператора, вывод в vMix (6 страниц × 10 строк), Browser Source плашек отсечек и экспорт в Excel.
+Панель оператора велогонки: приём результатов по **POST**, таблица и Excel, титры **vMix** по TCP, Browser Source плашек отсечек.
 
-**Подробная документация:** [docs/README.md](docs/README.md) — архитектура, модули, HTTP API.
+**Режим по умолчанию:** Приём POST + vMix TCP + ngrok (судьи в интернете). Limetime — запасной опрос API, не быстрый старт.
 
-**Руководство оператора:** [docs/GUIDE.md](docs/GUIDE.md).
+**Подробная документация:** [docs/README.md](docs/README.md). **Оператор:** [docs/GUIDE.md](docs/GUIDE.md).
 
-## Требования
+## Установка на другой ПК
 
-- Node.js 18+
-- vMix (опционально, для TCP Title Engine)
-- Файл `exports/data.xlsx` не должен быть открыт в Excel во время автосохранения
-
-## Быстрый старт
+1. **Node.js 18+**, клон репозитория, в папке проекта: `npm install`.
+2. **Windows Firewall:** входящий TCP **3000** (команда от администратора):
 
 ```powershell
 New-NetFirewallRule -DisplayName "Node.js Server 3000" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
-cd "D:\Судейка\velo"
+```
+
+3. **Флаги регионов:** файлы `assets/images/*.jpg` копируются вместе с репо. vMix берёт **локальный путь** на этом ПК (`SetImage`).
+4. **vMix на этом же ПК:** TCP API **8099**, Web Controller **8088**. В `config.json`: `"vmix.host": "localhost"` (или `127.0.0.1`). В браузере `http://host:8099/` не открывать — это не HTTP.
+5. **ngrok:** аккаунт, Authtoken, Domain (`*.ngrok-free.dev`). Два процесса:
+
+```powershell
+cd путь\к\VeloMurmansk
 npm install
 node server.js
 ```
 
-Откройте в браузере: **http://localhost:3000**
+Во втором окне:
+
+```powershell
+ngrok http 3000 --url https://ВАШ-домен.ngrok-free.dev
+```
+
+6. Судьям отдавайте **только** `https://ВАШ-домен.ngrok-free.dev/api/race`. LAN `192.168.x.x` с панели — только если судьи в той же сети.
+7. Панель оператора: **http://localhost:3000**. В `config.json` должно быть `"dataSource": "http"`.
+8. Файл `exports/data.xlsx` не должен быть открыт в Excel при автосохранении.
+
+### Тест POST
+
+Заголовок `ngrok-skip-browser-warning: 1` нужен при запросе через ngrok. Примеры: [docs/samples/](docs/samples/) (`race-post-women.json`, `race-post-men.json`, `race-post-junior-women.json`, `race-post-junior-men.json`).
+
+```powershell
+curl.exe -X POST "https://ВАШ-домен.ngrok-free.dev/api/race" `
+  -H "Content-Type: application/json" `
+  -H "ngrok-skip-browser-warning: 1" `
+  --data-binary "@docs/samples/race-post-men.json"
+```
+
+Локально без ngrok:
+
+```powershell
+curl.exe -X POST "http://localhost:3000/api/race" -H "Content-Type: application/json" --data-binary "@docs/samples/race-post-women.json"
+```
+
+### Формат POST
+
+Поля: `isSuccess`, `categoryId` (`women` / `men` / `junior_women` / `junior_men`), `data[]` (участники). Без `categoryId` пишется в активную категорию панели.
+
+### Данные на диске
+
+Последний **непустой** список участников каждой категории: `data/ingest/{categoryId}.json`. Метаданные: `data/ingest/state.json`. Переживают перезапуск Node и **reboot ПК**. Пропадают только если удалить папку. Пустой POST память и файлы категорий не затирает; повтор того же JSON на диск не пишется.
 
 ---
 
-## Настройка
+## Настройка (config)
 
-### Способ 1 — через интерфейс (рекомендуется)
+Ключевые поля (полная структура — в [docs/architecture.md](docs/architecture.md)):
 
-1. Запустите сервер (`node server.js`).
-2. Откройте **http://localhost:3000/config** (или «Настройки» на главной).
-3. Заполните название и ID события.
-4. Вставьте **4 Limetime-ссылки** — по одной на категорию (женщины, мужчины, юниорки, юниоры).
-5. Убедитесь, что под каждой ссылкой появились GUID.
-6. Нажмите **«Сохранить»** — polling перезапустится без рестарта Node.
+| Поле | Описание |
+|------|----------|
+| `dataSource` | `"http"` (POST `/api/race`) или `"limetime"` (запасной опрос API) |
+| `server.host` / `server.port` | Слушать `0.0.0.0:3000` (перекрываются `HOST` / `PORT`) |
+| `pollIntervalMs` | Интервал опроса Limetime (мс); в режиме `http` poll не запускается |
+| `excelExportEnabled` | Автозапись Excel (`true`/`false`; ключ отсутствует — включено) |
+| `laps.mode` | `"leader"` или `"all"` — плашки отсечек |
+| `vmix.host` | TCP API vMix, на том же ПК — `localhost` |
+| `vmix.autoUpdate` | Автоотправка в vMix |
+| `vmix.pageSize` | Строк на страницу (10) |
+| `vmix.maxPages` | Число страниц (6) |
+| `vmix.templates` | Имена Inputs в vMix |
+| `vmix.indexedFields` | Шаблоны SelectedName строк (`num {n}.Text`, `flag {n}.Source`, …) |
+| `vmix.singleFields` | Поля одной строки (`class.Text`, `lap.Text`, флаги лидеров, …) |
+| `vmix.fieldMapping` | Маппинг полей данных → vMix (из UI) |
+| `vmix.startlistByCategory` | Шаблон стартлиста по ID категории |
+| `categories[].totalLaps` | Всего кругов M для «КРУГ N/M» |
 
-### Формат Limetime-ссылки
+Шаблоны и маппинг правятся из UI без рестарта. После правки `config.json` на диске перезапустите `node server.js`.
+
+### Запасной режим Limetime
+
+1. `node server.js` → **http://localhost:3000/config**.
+2. Режим **Опрос Limetime**, четыре ссылки (женщины, мужчины, юниорки, юниоры), «Сохранить».
+
+Формат ссылки:
 
 ```
 https://services-results.limetime.io/results/get/{raceGuid}/{stageGuid}/{categoryGuid}
@@ -48,53 +103,7 @@ https://services-results.limetime.io/results/get/{raceGuid}/{stageGuid}/{categor
 | 2-й GUID | `categories[].stageGuid` |
 | 3-й GUID | `categories[].categoryGuid` |
 
-Все 4 ссылки должны относиться к **одному событию** (одинаковый `raceGuid`).
-
-### Способ 2 — config.json вручную
-
-Ключевые поля (полная структура — в [docs/architecture.md](docs/architecture.md)):
-
-| Поле | Описание |
-|------|----------|
-| `dataSource` | `"limetime"` (опрос API) или `"http"` (приём `POST /api/race`) |
-| `server.host` / `server.port` | Адрес прослушивания, по умолчанию `0.0.0.0:3000` (перекрываются `HOST` / `PORT`) |
-| `ingest.debug` | `true` — сохранять последний POST в `debug/last-race.json` |
-| `pollIntervalMs` | Интервал опроса Limetime (мс), по умолчанию 5000; в режиме `http` poll не запускается |
-| `excelExportEnabled` | Автозапись Excel при каждом poll (`true`/`false`; если ключ **отсутствует** — считается включённым) |
-| `laps.mode` | `"leader"` или `"all"` — режим плашек отсечек |
-| `vmix.host` | Хост TCP API vMix, обычно `localhost` |
-| `vmix.autoUpdate` | Автоотправка в vMix при poll |
-| `vmix.pageSize` | Строк на страницу (10) |
-| `vmix.maxPages` | Число страниц (6) |
-| `vmix.templates` | Имена Inputs в vMix |
-| `vmix.indexedFields` | Шаблоны SelectedName для строк (`num {n}.Text` и т.д.) |
-| `vmix.singleFields` | Поля одной строки (`class.Text`, `lap.Text`, …) |
-| `vmix.fieldMapping` | Маппинг полей Limetime → vMix (редактируется в UI) |
-| `vmix.startlistByCategory` | Шаблон стартлиста по ID категории |
-| `categories[].totalLaps` | Всего кругов M для счётчика «КРУГ N/M» |
-
-Шаблоны vMix, indexed/single fields и field mapping можно править **из UI** (вкладки «vMix шаблоны» и «Маппинг полей») — перезапуск сервера не нужен.
-
-После ручной правки `config.json` на диске перезапустите `node server.js` (in-memory конфиг обновляется через API и `/config`, но не при внешнем редактировании файла без рестарта).
-
-### HTTP POST от судейской системы
-
-Вы **даёте судьям адрес** с панели («Адрес для судей» / кнопка «Копировать»). Они отправляют JSON, приложение само принимает. Это не опрос их сервера.
-
-1. Режим **Приём POST** (вкладка vMix или `/config`).
-2. Скопируйте LAN-URL вида `http://192.168.x.x:3000/api/race` и передайте судейской системе.
-3. Разрешите входящий TCP-порт в Windows Firewall (по умолчанию 3000).
-4. Судьи шлют `POST` с `Content-Type: application/json`.
-
-```powershell
-curl -X POST "http://192.168.1.100:3000/api/race" -H "Content-Type: application/json" --data-binary "@docs/samples/race-post.json"
-```
-
-Опционально в JSON: `categoryId` / `raceId` (или query `?categoryId=`). Если нет — пишется в активную категорию панели. Пример тела: [docs/samples/race-post.json](docs/samples/race-post.json).
-
-Диагностика: тумблер «Сохранять последний JSON» или `RACE_DEBUG=1` — файл `debug/last-race.json`.
-
-Опрос Limetime остаётся запасным режимом.
+Все четыре ссылки — одно событие (`raceGuid`).
 
 ---
 
@@ -225,12 +234,15 @@ Legacy-команды: `lider` → winner1, `lider4` → winners (`vmix.legacy`)
 
 ```
 velo/
-├── server.js                 # Express, polling, маршруты
+├── server.js                 # Express, ingest, маршруты
 ├── config.json
 ├── package.json
 ├── README.md
+├── assets/images/            # флаги регионов для vMix SetImage
+├── data/ingest/              # JSON категорий (не в git, кроме .gitkeep)
 ├── lib/
-│   ├── limetime.js           # HTTP-клиент Limetime
+│   ├── ingestStore.js        # data/ingest/{category}.json
+│   ├── limetime.js           # HTTP-клиент Limetime (запасной)
 │   ├── raceAdapter.js        # Валидация POST /api/race
 │   ├── transform.js          # Сырые данные → таблицы
 │   ├── lapTracker.js         # Отсечки, lapState, режим leader/all
@@ -238,7 +250,7 @@ velo/
 │   ├── vmixPush.js           # buildVmixPayload, diff-кэш, TCP
 │   ├── vmixPlaques.js        # UI-модель маппинга полей
 │   ├── vmixTemplates.js      # Валидация/сохранение шаблонов
-│   ├── fieldMapping.js       # resolveAthleteValue, пути Limetime
+│   ├── fieldMapping.js       # resolveAthleteValue
 │   ├── excelExport.js        # data.xlsx
 │   ├── configEditor.js       # /api/setup
 │   ├── setupRoutes.js
@@ -260,7 +272,7 @@ velo/
 │   ├── api-reference.md
 │   ├── backend-modules.md
 │   ├── GUIDE.md
-│   └── samples/race-post.json
+│   └── samples/              # race-post-*.json
 └── exports/
     └── data.xlsx
 ```
