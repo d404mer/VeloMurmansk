@@ -1,0 +1,32 @@
+{
+  "dataType": "passing",
+  "bib": 29,
+  "realbib": "29",
+  "rank": 1,
+  "firstname": "Виктория",
+  "lastname": "ЕГОРОВА",
+  "race": "Женщины",
+  "category": "",
+  "sex": "F",
+  "nationality": "СВД",
+  "year": "2008",
+  "team": "",
+  "Квал.": "КМС",
+  "СубьектРФ": "Свердловская область",
+  "РейтингФВСР": "16",
+  "split": "5CP",
+  "time": "00:13:08",
+  "brutetime": "00:13:08",
+  "chiptime": "",
+  "gap": "",
+  "rankbycat": 1,
+  "rankbysex": 1,
+  "distance": 0,
+  "lapData": [{ "num": 1, "time": "00:13:08", "raceTime": "00:13:08" }],
+  "splits": [
+    { "name": "1CP", "time": "00:12:21" },
+    { "name": "2CP", "time": "00:12:58" },
+    { "name": "3CP", "time": "00:13:04" },
+    { "name": "5CP", "time": "00:13:08" }
+  ]
+}

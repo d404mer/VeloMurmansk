@@ -62,7 +62,20 @@ curl.exe -X POST "http://localhost:3000/api/race" -H "Content-Type: application/
 "raceResult": { "categoryMap": { "Юноши 13-14 лет": "men", "42 km": "men" } }
 ```
 
-**Wiclax отметки** (в реальном времени, тот же `POST /api/race`): JSON-массив `{ bib, time, split_id }` или текст `101;10:15:32.450;START`. `START` — уход со старта; `MAIN_LOOP` / `LAP_LOOP` / `FINISH` — круг. Новые отметки **дописываются** к уже принятому стартовому листу категории `current`. Круг гонки на титрах считает существующий `lapTracker` по лидеру (у кого больше кругов). Примеры: [docs/samples/wiclax-passings.json](docs/samples/wiclax-passings.json), [docs/samples/wiclax-passings.txt](docs/samples/wiclax-passings.txt).
+**Wiclax отметки** (в реальном времени, тот же `POST /api/race`):
+
+- Короткий лог без ФИО: JSON-массив `{ bib, time, split_id }` или текст `101;10:15:32.450;START`. `START` — уход со старта; `MAIN_LOOP` / `LAP_LOOP` / `FINISH` — круг.
+- Именной `dataType: "passing"` (ФИО, `splits` / `lapData`): участник **обновляется по номеру**, стартовый лист не затирается. `1CP`…`5CP` — промежуточные отсечки; `split: "Finish"` — круги гонки из `lapData`. Пустой `{ "dataType": "inRace", "rows": [] }` не меняет список.
+- Если `team` пустой, клуб берётся из `СубьектРФ` / `nationality` (код **СВД** = Свердловская область).
+
+Примеры: [docs/samples/wiclax-passings.json](docs/samples/wiclax-passings.json), [docs/samples/wiclax-passing-cp.json](docs/samples/wiclax-passing-cp.json), [docs/samples/wiclax-passing-finish.json](docs/samples/wiclax-passing-finish.json).
+
+Эмулятор ретранслятора (startlist → 5CP → Finish):
+
+```powershell
+node scripts/wiclax-emulator.js
+node scripts/wiclax-emulator.js http://localhost:3000/api/race 1500
+```
 
 ```powershell
 curl.exe -X POST "http://localhost:3000/api/race" -H "Content-Type: application/json" --data-binary "@docs/samples/wiclax-passings.json"

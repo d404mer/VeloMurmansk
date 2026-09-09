@@ -16,7 +16,7 @@ const { resolveVmixConfig, normalizeNumberTrim } = require('./lib/vmixConfig');
 const { buildSetupView, applyIngestSettings } = require('./lib/configEditor');
 const { parseRacePayload, RaceAdapterError } = require('./lib/raceAdapter');
 const { parseRaceResultJson } = require('./lib/raceResultAdapter');
-const { parseTimingTextLog, mergeTimingPassings } = require('./lib/wiclaxTiming');
+const { parseTimingTextLog, mergeTimingPassings, mergePassingAthletes } = require('./lib/wiclaxTiming');
 const { normalizeClubNameMode } = require('./lib/regions');
 const {
   ensureCurrentRaceCategory,
@@ -1056,6 +1056,10 @@ app.post('/api/race', async (req, res) => {
       const prev = lastCategoryRaw.get(parsed.categoryId) || [];
       parsed.athletes = mergeTimingPassings(prev, parsed.passings, config);
       parsed.count = parsed.athletes.length;
+    } else if (parsed.mergeAthletes) {
+      const prev = lastCategoryRaw.get(parsed.categoryId) || [];
+      parsed.athletes = mergePassingAthletes(prev, parsed.athletes);
+      parsed.count = parsed.athletes.length;
     }
     captureRawRacePost({
       rawText: req.rawRaceText,
@@ -1066,7 +1070,7 @@ app.post('/api/race', async (req, res) => {
     });
     console.log(`[race] ${receivedAt} category=${parsed.categoryId} count=${parsed.count} source=${parsed.source || 'native'}`);
 
-    if (parsed.contestName && !parsed.mergePassings) {
+    if (parsed.contestName && !parsed.mergePassings && !parsed.mergeAthletes) {
       updateConfig((cfg) => {
         applyIngestDisplayName(cfg, parsed.categoryId, parsed.contestName);
       }, 'ingest-name');
