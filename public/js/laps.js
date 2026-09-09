@@ -57,6 +57,7 @@
   let currentCompletedLap = null;
   let leaderNumber = '';
   let lastLeaderRestoreKey = '';
+  let lastIntermediateBoardKey = '';
   let demoTimer = null;
   let demoLap = 1;
 
@@ -351,8 +352,98 @@
     }
   }
 
+  function findVisiblePlaqueByNumber(number) {
+    const key = String(number ?? '');
+    if (leaderPlaque && String(leaderPlaque.rawNumber ?? '') === key) return leaderPlaque;
+    return followers.find((entry) => String(entry.rawNumber ?? '') === key) || null;
+  }
+
+  function updatePlaqueFields(entry, event) {
+    if (!entry || !entry.el) return;
+    entry.id = event.id || entry.id;
+    entry.rawName = event.name ?? entry.rawName;
+    entry.rawNumber = event.number ?? entry.rawNumber;
+    fillPlaqueEl(entry.el, event);
+    refreshVisibleNames();
+  }
+
+  /**
+   * Biathlon intermediate board: gaps/times update in place (no digit animation).
+   * Oriented on leader's last intermediate from lapState.intermediateBoard.
+   */
+  function syncIntermediateBoard(board) {
+    if (clearing || shifting) return;
+
+    if (!board || !Array.isArray(board.rows) || !board.rows.length) {
+      lastIntermediateBoardKey = '';
+      return;
+    }
+
+    if (currentCompletedLap != null) {
+      const lapNum = Number(board.lapNumber);
+      if (Number.isFinite(lapNum) && lapNum !== Number(currentCompletedLap)) {
+        return;
+      }
+    }
+
+    const boardKey = `${board.splitName}|${board.splitTime}|${board.rows
+      .map((r) => `${r.number}:${r.gap}:${r.place}`)
+      .join(';')}`;
+    if (boardKey === lastIntermediateBoardKey) return;
+    lastIntermediateBoardKey = boardKey;
+
+    const wanted = new Set(board.rows.map((r) => String(r.number ?? '')));
+
+    // Drop followers who are no longer on this intermediate (instant, no animation).
+    for (let i = followers.length - 1; i >= 0; i -= 1) {
+      const entry = followers[i];
+      if (!wanted.has(String(entry.rawNumber ?? ''))) {
+        entry.el.remove();
+        followers.splice(i, 1);
+      }
+    }
+
+    for (const row of board.rows) {
+      const event = {
+        id: `inter-${board.splitName}-${row.number}-${row.splitTime || row.gap}`,
+        place: row.place,
+        number: row.number,
+        name: row.name,
+        gap: row.gap,
+        splitTime: row.splitTime,
+        lapNumber: board.lapNumber,
+        isIntermediate: true,
+      };
+
+      const existing = findVisiblePlaqueByNumber(row.number);
+      if (existing) {
+        updatePlaqueFields(existing, event);
+        continue;
+      }
+
+      if (isLeaderEvent(event) && isLeaderMode()) {
+        appendLeader(event);
+        continue;
+      }
+
+      if (followers.length >= maxVisibleFollowers()) {
+        // Prefer keeping earlier places: skip if stack full and not an update.
+        continue;
+      }
+      appendFollower(event);
+    }
+  }
+
   function enqueuePlaque(event) {
     if (!event || !event.id) return;
+    if (event.type === 'update' || event.isIntermediate) {
+      const existing = findVisiblePlaqueByNumber(event.number);
+      if (existing) {
+        updatePlaqueFields(existing, event);
+        return;
+      }
+      if (event.type === 'update') return;
+    }
     if (seenEventIds.has(event.id)) return;
 
     if (currentCompletedLap != null) {
@@ -390,6 +481,7 @@
     if (leaderSlot) leaderSlot.replaceChildren();
     if (track) track.replaceChildren();
     lastLeaderRestoreKey = '';
+    lastIntermediateBoardKey = '';
   }
 
   function clearAllAnimated() {
@@ -594,6 +686,9 @@
           updateLapStatus(data.lapState);
           await handleLapState(data.lapState);
           ensureLeaderFromState(data.lapState);
+          if (!clearing) {
+            syncIntermediateBoard(data.lapState.intermediateBoard);
+          }
         }
 
         if (clearing) return;

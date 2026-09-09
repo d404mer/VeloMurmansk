@@ -33,6 +33,8 @@ const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
 const RAW_POST_PATH = path.join(__dirname, 'debug', 'last-raw-post.json');
 const RAW_POST_TEXT_PATH = path.join(__dirname, 'debug', 'last-raw-post.txt');
+const RAW_HISTORY_DIR = path.join(__dirname, 'debug', 'raw-history');
+const RAW_HISTORY_KEEP = 5;
 
 let configMtimeMs = 0;
 
@@ -137,10 +139,38 @@ const vmixPusher = createVmixPusher(() => ({
   },
 }));
 
+function pruneRawHistory(keep = RAW_HISTORY_KEEP) {
+  try {
+    if (!fs.existsSync(RAW_HISTORY_DIR)) return;
+    const files = fs
+      .readdirSync(RAW_HISTORY_DIR)
+      .filter((name) => name.endsWith('.json'))
+      .map((name) => ({
+        name,
+        path: path.join(RAW_HISTORY_DIR, name),
+        mtime: fs.statSync(path.join(RAW_HISTORY_DIR, name)).mtimeMs,
+      }))
+      .sort((a, b) => b.mtime - a.mtime);
+    for (const file of files.slice(Math.max(0, Number(keep) || RAW_HISTORY_KEEP))) {
+      try {
+        fs.unlinkSync(file.path);
+        const txt = file.path.replace(/\.json$/i, '.txt');
+        if (fs.existsSync(txt)) fs.unlinkSync(txt);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+  } catch (err) {
+    console.warn('[race] raw history prune failed:', err.message || err);
+  }
+}
+
 function captureRawRacePost({ rawText, parsed, query, contentType, error }) {
   try {
     fs.mkdirSync(path.dirname(RAW_POST_PATH), { recursive: true });
-    fs.writeFileSync(RAW_POST_TEXT_PATH, rawText == null ? '' : String(rawText), 'utf8');
+    fs.mkdirSync(RAW_HISTORY_DIR, { recursive: true });
+    const text = rawText == null ? '' : String(rawText);
+    fs.writeFileSync(RAW_POST_TEXT_PATH, text, 'utf8');
     const keys =
       parsed && typeof parsed === 'object' && !Array.isArray(parsed)
         ? Object.keys(parsed)
@@ -152,15 +182,24 @@ function captureRawRacePost({ rawText, parsed, query, contentType, error }) {
       error: error || null,
       query: query || {},
       contentType: contentType || '',
-      bytes: rawText ? Buffer.byteLength(String(rawText), 'utf8') : 0,
+      bytes: text ? Buffer.byteLength(text, 'utf8') : 0,
       topLevelKeys: keys,
       parsedType: Array.isArray(parsed) ? 'array' : parsed == null ? 'null' : typeof parsed,
       parsed,
-      rawPreview: String(rawText || '').slice(0, 4000),
+      rawPreview: text.slice(0, 4000),
     };
-    fs.writeFileSync(RAW_POST_PATH, `${JSON.stringify(dump, null, 2)}\n`, 'utf8');
+    const jsonBody = `${JSON.stringify(dump, null, 2)}\n`;
+    fs.writeFileSync(RAW_POST_PATH, jsonBody, 'utf8');
+
+    const stamp = dump.savedAt.replace(/[:.]/g, '-');
+    const histJson = path.join(RAW_HISTORY_DIR, `${stamp}.json`);
+    const histTxt = path.join(RAW_HISTORY_DIR, `${stamp}.txt`);
+    fs.writeFileSync(histJson, jsonBody, 'utf8');
+    fs.writeFileSync(histTxt, text, 'utf8');
+    pruneRawHistory(RAW_HISTORY_KEEP);
+
     console.log(
-      `[race] captured POST → debug/last-raw-post.json keys=${keys.join(',') || '-'} bytes=${dump.bytes}${error ? ` error=${error}` : ''}`
+      `[race] captured POST → debug/last-raw-post.json (+raw-history×${RAW_HISTORY_KEEP}) keys=${keys.join(',') || '-'} bytes=${dump.bytes}${error ? ` error=${error}` : ''}`
     );
   } catch (err) {
     console.warn('[race] capture failed:', err.message || err);
@@ -564,6 +603,11 @@ async function applyCategoryRaw(categoryId, rawAthletes, { skipExcel = false } =
 
   const transformed = transformAthletes(rawAthletes);
   lastCategoryResults.set(categoryId, transformed);
+  try {
+    ingestStore.saveCategoryResults(categoryId, transformed);
+  } catch (err) {
+    console.warn('[race] save results failed:', err.message || err);
+  }
 
   const isActive = categoryId === config.activeCategoryId;
   if (isActive) {

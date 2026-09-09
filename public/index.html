@@ -487,7 +487,7 @@
               </div>
             </div>
           </div>
-          <p class="lap-panel__hint">Плашки — при прохождении отсечки. N/M меняется, когда лидер завершает круг (MAIN_LOOP).</p>
+          <p class="lap-panel__hint">Круги 1–2: только плашки финиша круга. Промежуточные — вручную («+ промежуточные»), не раньше 3-го круга; gap как в биатлоне от последней отсечки лидера.</p>
           <div class="lap-panel__grid" style="margin-bottom: 12px;">
             <div>
               <div class="lap-panel__label">Плашки: чей результат</div>
@@ -502,8 +502,8 @@
               <div class="lap-panel__label">Какие отсечки</div>
               <div class="lap-panel__value">
                 <select class="form-select form-select-sm d-inline-block w-auto" v-model="splitsFilter" @change="saveSplitsFilter">
-                  <option value="loop">Только круги</option>
-                  <option value="all">Все отсечки</option>
+                  <option value="loop">Только круги (старт/финиш)</option>
+                  <option value="all">+ промежуточные (вручную, с 3-го круга)</option>
                 </select>
               </div>
             </div>
