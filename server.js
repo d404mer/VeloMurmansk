@@ -15,6 +15,8 @@ const { getTemplatesView, validateTemplatesUpdate, applyTemplatesUpdate } = requ
 const { resolveVmixConfig, normalizeNumberTrim } = require('./lib/vmixConfig');
 const { buildSetupView, applyIngestSettings } = require('./lib/configEditor');
 const { parseRacePayload, RaceAdapterError } = require('./lib/raceAdapter');
+const { parseRaceResultJson } = require('./lib/raceResultAdapter');
+const { ensureCurrentRaceCategory } = require('./lib/currentRace');
 const ingestStore = require('./lib/ingestStore');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -29,7 +31,8 @@ function readConfigFile() {
   } catch (_) {
     /* ignore */
   }
-  return JSON.parse(text);
+  const parsed = JSON.parse(text);
+  return ensureCurrentRaceCategory(parsed);
 }
 
 const app = express();
@@ -47,6 +50,32 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  if (req.method !== 'POST' || req.path !== '/api/race') {
+    next();
+    return;
+  }
+  const chunks = [];
+  req.on('data', (chunk) => chunks.push(chunk));
+  req.on('end', () => {
+    const text = Buffer.concat(chunks).toString('utf8');
+    const trimmed = text.trim();
+    if (!trimmed) {
+      req.body = {};
+      req._body = true;
+      next();
+      return;
+    }
+    const parsed = parseRaceResultJson(trimmed);
+    if (parsed == null) {
+      res.status(400).json({ success: false, error: 'Invalid JSON' });
+      return;
+    }
+    req.body = parsed;
+    req._body = true;
+    next();
+  });
+});
 app.use(
   express.json({
     limit: '2mb',
@@ -930,7 +959,7 @@ app.post('/api/race', async (req, res) => {
   const receivedAt = new Date().toISOString();
   try {
     const parsed = parseRacePayload(req.body, req.query, config);
-    console.log(`[race] ${receivedAt} category=${parsed.categoryId} count=${parsed.count}`);
+    console.log(`[race] ${receivedAt} category=${parsed.categoryId} count=${parsed.count} source=${parsed.source || 'native'}`);
 
     if (parsed.count === 0) {
       lastIngestAt = receivedAt;

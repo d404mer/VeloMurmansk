@@ -54,7 +54,19 @@ curl.exe -X POST "http://localhost:3000/api/race" -H "Content-Type: application/
 
 ### Формат POST
 
-Поля: `isSuccess`, `categoryId` (`women` / `men` / `junior_women` / `junior_men`), `data[]` (участники). Без `categoryId` пишется в активную категорию панели.
+Родной формат: `isSuccess`, `categoryId` (`current` / `women` / `men` / `junior_women` / `junior_men`), `data[]`. Без `categoryId` (и если RaceResult не угадал категорию по названию гонки) пакет пишется в **Текущая гонка** (`current`).
+
+**RaceResult** (экспорт JSON / passing) принимается на тот же `POST /api/race`. Адаптер мапит поля и собирает `laps` из `splits` или из одного `time`. Contest-имя (`race: "42 km"`) **не** подставляется как `raceId`. Категорию лучше указать явно: `?categoryId=men` (или поле `categoryId` в JSON). Опционально в `config.json`:
+
+```json
+"raceResult": { "categoryMap": { "Юноши 13-14 лет": "men", "42 km": "men" } }
+```
+
+Примеры: [docs/samples/raceresult-export.json](docs/samples/raceresult-export.json), [docs/samples/raceresult-passing.json](docs/samples/raceresult-passing.json).
+
+```powershell
+curl.exe -X POST "http://localhost:3000/api/race?categoryId=men" -H "Content-Type: application/json" --data-binary "@docs/samples/raceresult-export.json"
+```
 
 ### Данные на диске
 
@@ -244,6 +256,7 @@ velo/
 │   ├── ingestStore.js        # data/ingest/{category}.json
 │   ├── limetime.js           # HTTP-клиент Limetime (запасной)
 │   ├── raceAdapter.js        # Валидация POST /api/race
+│   ├── raceResultAdapter.js  # RaceResult JSON → data[]
 │   ├── transform.js          # Сырые данные → таблицы
 │   ├── lapTracker.js         # Отсечки, lapState, режим leader/all
 │   ├── vmixConfig.js         # resolveVmixConfig, formatLapText

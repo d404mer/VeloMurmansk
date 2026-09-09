@@ -132,13 +132,17 @@
     "numberTrim": "hundredths"
   },
   "activeEventId": "xcoperv2026",
-  "activeCategoryId": "men",
+  "activeCategoryId": "current",
   "events": [
     {
       "id": "xcoperv2026",
       "name": "ᅟ",
       "raceGuid": "80dd47ea-9545-42f0-a078-278c270cd810",
       "categories": [
+        {
+          "id": "current",
+          "name": "Текущая гонка"
+        },
         {
           "id": "women",
           "name": "Первенство России • Кросс-кантри • Девушки 13-14 лет",

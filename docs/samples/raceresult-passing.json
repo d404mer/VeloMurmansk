@@ -1,0 +1,66 @@
+{
+  "race": "42 km",
+  "starters": 2,
+  "ranked": 2,
+  "results": [
+    {
+      "dataType": "passing",
+      "bib": 44,
+      "realbib": "44",
+      "rank": 1,
+      "firstname": "Владимир",
+      "lastname": "АЛФЕРОВ",
+      "race": "42 km",
+      "category": "М18-44",
+      "sex": "M",
+      "nationality": "ЧЛБ",
+      "year": "1987",
+      "team": "Челябинск",
+      "split": "КП Монблан",
+      "time": "02:22:57",
+      "brutetime": "10:22:56.329",
+      "chiptime": "",
+      "gap": "",
+      "rankbycat": 1,
+      "rankbysex": 1,
+      "splits": [
+        {
+          "name": "КП Старт",
+          "time": "00:45:10"
+        },
+        {
+          "name": "КП Монблан",
+          "time": "02:22:57"
+        }
+      ]
+    },
+    {
+      "dataType": "passing",
+      "bib": 12,
+      "realbib": "12",
+      "rank": 2,
+      "firstname": "Игорь",
+      "lastname": "СОКОЛОВ",
+      "race": "42 km",
+      "category": "М18-44",
+      "sex": "M",
+      "nationality": "МСК",
+      "year": "1990",
+      "team": "Москва",
+      "split": "КП Монблан",
+      "time": "02:25:03",
+      "gap": "00:02:06",
+      "rankbycat": 2,
+      "splits": [
+        {
+          "name": "КП Старт",
+          "time": "00:46:02"
+        },
+        {
+          "name": "КП Монблан",
+          "time": "02:25:03"
+        }
+      ]
+    }
+  ]
+}

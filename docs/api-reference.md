@@ -129,11 +129,13 @@ Host/port из `config.server`. Применяется после перезап
 
 Судейская система **отправляет** JSON сюда (`Content-Type: application/json`). Приложение принимает пакет, само никуда за результатами не ходит.
 
-Тело: `{ "isSuccess": true, "data": [ /* участники */ ] }`.
+Тело (родной формат): `{ "isSuccess": true, "data": [ /* участники */ ] }`.
 
-Опционально: `categoryId`, `raceId` в теле или query (`?categoryId=men`). Без них — активная категория/событие из `config.json`. `categoryId` резолвится в `categories[].id` или `categories[].categoryGuid`.
+Либо **RaceResult**: `{ "race", "starters", "ranked", "results": [ { "rank", "name", "club", "time", "race", "catrank" } ] }` или passing-строки с `bib` / `splits`. Адаптер (`lib/raceResultAdapter.js`) мапит поля и собирает `laps`. Contest-имя не используется как `raceId`.
 
-Пример: [samples/race-post.json](./samples/race-post.json).
+Опционально: `categoryId`, `raceId` в теле или query (`?categoryId=men`). Без них пакет пишется в категорию **Текущая гонка** (`current`), если RaceResult не сопоставил название гонки с другой категорией.
+
+Примеры: [samples/race-post.json](./samples/race-post.json), [samples/raceresult-export.json](./samples/raceresult-export.json).
 
 | Код | Когда |
 |-----|--------|
