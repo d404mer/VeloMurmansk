@@ -18,6 +18,7 @@
   "excelExportEnabled": false,
   "laps": {
     "mode": "leader",
+    "splits": "loop",
     "hideTeamWord": true,
     "fonts": {
       "base": 18,

@@ -16,6 +16,7 @@ const { resolveVmixConfig, normalizeNumberTrim } = require('./lib/vmixConfig');
 const { buildSetupView, applyIngestSettings } = require('./lib/configEditor');
 const { parseRacePayload, RaceAdapterError } = require('./lib/raceAdapter');
 const { parseRaceResultJson } = require('./lib/raceResultAdapter');
+const { parseTimingTextLog, mergeTimingPassings } = require('./lib/wiclaxTiming');
 const { ensureCurrentRaceCategory } = require('./lib/currentRace');
 const ingestStore = require('./lib/ingestStore');
 
@@ -76,7 +77,7 @@ app.use((req, res, next) => {
       next();
       return;
     }
-    const parsed = parseRaceResultJson(trimmed);
+    const parsed = parseRaceResultJson(trimmed) || parseTimingTextLog(trimmed);
     if (parsed == null) {
       captureRawRacePost({
         rawText: text,
@@ -556,7 +557,8 @@ async function applyCategoryRaw(categoryId, rawAthletes, { skipExcel = false } =
       categoryId,
       rawAthletes,
       getCategoryTotalLaps(category),
-      getLapsMode()
+      getLapsMode(),
+      getSplitsFilter()
     );
     if (isActive) {
       handleLapPollResult(categoryId, result);
@@ -602,7 +604,8 @@ function showCachedActiveCategory() {
         activeCategory.id,
         raw,
         getCategoryTotalLaps(activeCategory),
-        getLapsMode()
+        getLapsMode(),
+        getSplitsFilter()
       );
       handleLapPollResult(activeCategory.id, result);
     }
@@ -623,6 +626,10 @@ function resolveCategoryId(requestedId) {
 
 function getLapsMode() {
   return config.laps?.mode === 'all' ? 'all' : 'leader';
+}
+
+function getSplitsFilter() {
+  return config.laps?.splits === 'all' ? 'all' : 'loop';
 }
 
 const DEFAULT_LAPS_FONTS = { base: 18, name: 18, number: 13 };
@@ -969,6 +976,7 @@ app.get('/api/config', (req, res) => {
     lapState: lapTracker.getLapState(config.activeCategoryId),
     totalLaps: getCategoryTotalLaps(getActiveCategory(event)),
     lapsMode: getLapsMode(),
+    splitsFilter: getSplitsFilter(),
     lapsFonts: getLapsFonts(),
     hideTeamWord: isHideTeamWord(),
     excelExportEnabled: isExcelExportEnabled(),
@@ -1006,6 +1014,11 @@ app.post('/api/race', async (req, res) => {
   const receivedAt = new Date().toISOString();
   try {
     const parsed = parseRacePayload(req.body, req.query, config);
+    if (parsed.mergePassings) {
+      const prev = lastCategoryRaw.get(parsed.categoryId) || [];
+      parsed.athletes = mergeTimingPassings(prev, parsed.passings, config);
+      parsed.count = parsed.athletes.length;
+    }
     captureRawRacePost({
       rawText: req.rawRaceText,
       parsed: req.body,
@@ -1296,6 +1309,7 @@ app.get('/api/laps/recent', (req, res) => {
     ok: true,
     dataFrozen,
     lapsMode: getLapsMode(),
+    splitsFilter: getSplitsFilter(),
     fonts: getLapsFonts(),
     hideTeamWord: isHideTeamWord(),
     numberTrim: getNumberTrim(),
@@ -1312,12 +1326,26 @@ app.get('/api/laps/status', (req, res) => {
     dataFrozen,
     categoryId,
     lapsMode: getLapsMode(),
+    splitsFilter: getSplitsFilter(),
     fonts: getLapsFonts(),
     hideTeamWord: isHideTeamWord(),
     numberTrim: getNumberTrim(),
     lapState: lapTracker.getLapState(categoryId),
     lastEvent: events.length ? events[events.length - 1] : null,
   });
+});
+
+app.post('/api/laps/splits', (req, res) => {
+  const mode = req.body?.mode;
+  if (mode !== 'loop' && mode !== 'all') {
+    res.status(400).json({ ok: false, error: 'mode must be "loop" or "all"' });
+    return;
+  }
+  updateConfig((cfg) => {
+    if (!cfg.laps) cfg.laps = {};
+    cfg.laps.splits = mode;
+  }, 'laps/splits');
+  res.json({ ok: true, splitsFilter: getSplitsFilter() });
 });
 
 app.post('/api/laps/mode', (req, res) => {

@@ -62,7 +62,11 @@ curl.exe -X POST "http://localhost:3000/api/race" -H "Content-Type: application/
 "raceResult": { "categoryMap": { "Юноши 13-14 лет": "men", "42 km": "men" } }
 ```
 
-Примеры: [docs/samples/raceresult-export.json](docs/samples/raceresult-export.json), [docs/samples/raceresult-passing.json](docs/samples/raceresult-passing.json).
+**Wiclax отметки** (в реальном времени, тот же `POST /api/race`): JSON-массив `{ bib, time, split_id }` или текст `101;10:15:32.450;START`. `START` — уход со старта; `MAIN_LOOP` / `LAP_LOOP` / `FINISH` — круг. Новые отметки **дописываются** к уже принятому стартовому листу категории `current`. Круг гонки на титрах считает существующий `lapTracker` по лидеру (у кого больше кругов). Примеры: [docs/samples/wiclax-passings.json](docs/samples/wiclax-passings.json), [docs/samples/wiclax-passings.txt](docs/samples/wiclax-passings.txt).
+
+```powershell
+curl.exe -X POST "http://localhost:3000/api/race" -H "Content-Type: application/json" --data-binary "@docs/samples/wiclax-passings.json"
+```
 
 ```powershell
 curl.exe -X POST "http://localhost:3000/api/race?categoryId=men" -H "Content-Type: application/json" --data-binary "@docs/samples/raceresult-export.json"
@@ -84,7 +88,8 @@ curl.exe -X POST "http://localhost:3000/api/race?categoryId=men" -H "Content-Typ
 | `server.host` / `server.port` | Слушать `0.0.0.0:3000` (перекрываются `HOST` / `PORT`) |
 | `pollIntervalMs` | Интервал опроса Limetime (мс); в режиме `http` poll не запускается |
 | `excelExportEnabled` | Автозапись Excel (`true`/`false`; ключ отсутствует — включено) |
-| `laps.mode` | `"leader"` или `"all"` — плашки отсечек |
+| `laps.mode` | `"leader"` или `"all"` — на плашке отставание или своё время |
+| `laps.splits` | `"loop"` только круги (MAIN_LOOP) или `"all"` все отсечки Wiclax |
 | `vmix.host` | TCP API vMix, на том же ПК — `localhost` |
 | `vmix.autoUpdate` | Автоотправка в vMix |
 | `vmix.pageSize` | Строк на страницу (10) |
@@ -160,6 +165,8 @@ Browser Source для vMix/OBS — плашки при прохождении к
 | `all` | У всех — собственное время круга; общий скролл, без закрепления |
 
 Смена номера круга N/M по-прежнему привязана к лидеру в обоих режимах.
+
+**Какие отсечки** (`config.laps.splits`, второй select на вкладке «Результаты»): `loop` — плашки только с кругов (MAIN_LOOP); `all` — ещё промежуточные SPLIT1 и т.п. Счётчик N/M всегда по кругам.
 
 ### Заморозка данных
 

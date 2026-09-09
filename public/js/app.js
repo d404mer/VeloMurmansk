@@ -21,6 +21,7 @@ Vue.createApp({
       resultCount: 0,
       totalLaps: 8,
       lapsMode: 'leader',
+      splitsFilter: 'loop',
       lapsFonts: { base: 18, name: 18, number: 13 },
       hideTeamWord: false,
       excelExportEnabled: true,
@@ -680,6 +681,14 @@ Vue.createApp({
         });
     },
 
+    saveSplitsFilter() {
+      axios
+        .post('/api/laps/splits', { mode: this.splitsFilter })
+        .catch((err) => {
+          this.lastError = err.response?.data?.error || err.message || 'Ошибка фильтра отсечек';
+        });
+    },
+
     saveLapsFonts() {
       const previous = { ...this.lapsFonts };
       const payload = {
@@ -736,6 +745,9 @@ Vue.createApp({
         }
         if (res.data.lapsMode) {
           this.lapsMode = res.data.lapsMode;
+        }
+        if (res.data.splitsFilter) {
+          this.splitsFilter = res.data.splitsFilter;
         }
         if (res.data.lapsFonts) {
           this.lapsFonts = { ...res.data.lapsFonts };

@@ -1,0 +1,22 @@
+{"dataType": "startList", "eventName": "Забег за облака 2026", "rows":[
+{"bib":1,"realbib":"1","rank":1,"firstname":"Василий","lastname":"КИСЛИЦЫН","race":"42 km","category":"М18-44","sex":"M","nationality":"ЧЛБ","year":"1987","team":"Магнитка","startTime":"09:58:57.720"},
+{"bib":2,"realbib":"2","rank":2,"firstname":"Богдан","lastname":"ЗАХАРИЯ","race":"42 km","category":"М18-44","sex":"M","nationality":"ЧЛБ","year":"2003","team":"Златоуст","startTime":"09:58:15.630"},
+{"bib":3,"realbib":"3","rank":3,"firstname":"Руфат","lastname":"БАГАУТДИНОВ","race":"42 km","category":"М18-44","sex":"M","nationality":"ЧЛБ","year":"1984","team":"Челябинск","startTime":"10:00:01.860"},
+{"bib":4,"realbib":"4","rank":4,"firstname":"Александр","lastname":"ЛЫСОВ","race":"42 km","category":"М18-44","sex":"M","nationality":"ЧЛБ","year":"1991","team":"Челябинск","startTime":"09:39:49"},
+{"bib":5,"realbib":"5","rank":5,"firstname":"Елена","lastname":"БАЛАХОНКИНА","race":"42 km","category":"Ж45-59","sex":"F","nationality":"СМР","year":"1977","team":"Самара","startTime":"09:58:31.780"},
+{"bib":6,"realbib":"6","rank":6,"firstname":"Алёна","lastname":"КОМАРОВА","race":"42 km","category":"Ж18-44","sex":"F","nationality":"ЧЛБ","year":"1993","team":"Миасс","startTime":"09:38:18.290"},
+{"bib":7,"realbib":"7","rank":7,"firstname":"Екатерина","lastname":"БАСАЛАЕВА","race":"42 km","category":"Ж45-59","sex":"F","nationality":"ЧЛБ","year":"1978","team":"Челябинск","startTime":"09:58:48.800"},
+{"bib":8,"realbib":"8","rank":8,"firstname":"Альберт","lastname":"ГАНИЕВ","race":"42 km","category":"М18-44","sex":"M","nationality":"ТЮМ","year":"1985","team":"Тюмень","startTime":"09:59:20.230"},
+{"bib":9,"realbib":"9","rank":9,"firstname":"Дмитрий","lastname":"МОЛОСТОВ","race":"42 km","category":"М45-59","sex":"M","nationality":"ЧЛБ","year":"1977","team":"Миасс","startTime":"09:58:34.730"},
+{"bib":10,"realbib":"10","rank":10,"firstname":"Светлана","lastname":"ЛЮБИМОВА","race":"42 km","category":"Ж18-44","sex":"F","nationality":"ЧЛБ","year":"1984","team":"Миасс","status":"DNS","DNS":true},
+{"bib":11,"realbib":"11","rank":11,"firstname":"Александр","lastname":"САМОРУКОВ","race":"42 km","category":"М18-44","sex":"M","nationality":"ЧЛБ","year":"1986","team":"Челябинск","startTime":"10:00:05.600"},
+{"bib":12,"realbib":"12","rank":12,"firstname":"Вадим","lastname":"КАМЕРЛОХЕР","race":"42 km","category":"М18-44","sex":"M","nationality":"ЧЛБ","year":"1990","team":"Челябинск","startTime":"09:59:18.970"},
+{"bib":13,"realbib":"13","rank":13,"firstname":"Дмитрий","lastname":"МАЛЬЦЕВ","race":"42 km","category":"М45-59","sex":"M","nationality":"ЧЛБ","year":"1973","team":"Златоуст","startTime":"09:58:57.970"},
+{"bib":14,"realbib":"14","rank":14,"firstname":"Павел","lastname":"КЛЮЧНИКОВ","race":"42 km","category":"М18-44","sex":"M","nationality":"ЧЛБ","year":"1987","team":"Челябинск","startTime":"10:00:03.870"},
+{"bib":15,"realbib":"15","rank":15,"firstname":"Алик","lastname":"НИКОЛАЕВ","race":"42 km","category":"М18-44","sex":"M","nationality":"ТАТ","year":"1991","team":"Казань","status":"DNS","DNS":true},
+{"bib":16,"realbib":"16","rank":16,"firstname":"Алексей","lastname":"ТИМОХИН","race":"42 km","category":"М18-44","sex":"M","nationality":"ЧЛБ","year":"1987","team":"Миасс","startTime":"09:45:05.230"},
+{"bib":17,"realbib":"17","rank":17,"firstname":"Ильдар","lastname":"ГАБДУЛЛИН","race":"42 km","category":"М18-44","sex":"M","nationality":"СМР","year":"1985","team":"Самара","startTime":"09:58:31.040"},
+{"bib":18,"realbib":"18","rank":18,"firstname":"Юлия","lastname":"ИВАНОВА","race":"42 km","category":"Ж45-59","sex":"F","nationality":"СПБ","year":"1981","team":"Санкт-Петербург","startTime":"10:00:03.620"},
+{"bib":19,"realbib":"19","rank":19,"firstname":"Максим","lastname":"ЧЕРНЕЦОВ","race":"42 km","category":"М18-44","sex":"M","nationality":"ЧЛБ","year":"1985","team":"Челябинск","status":"DNS","DNS":true}
+]}
+

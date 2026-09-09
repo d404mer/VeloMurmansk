@@ -457,14 +457,23 @@
               </div>
             </div>
           </div>
-          <p class="lap-panel__hint">Отсечки — при прохождении круга любым участником. N/M меняется, когда лидер завершает круг.</p>
+          <p class="lap-panel__hint">Плашки — при прохождении отсечки. N/M меняется, когда лидер завершает круг (MAIN_LOOP).</p>
           <div class="lap-panel__grid" style="margin-bottom: 12px;">
             <div>
-              <div class="lap-panel__label">Режим отсечек</div>
+              <div class="lap-panel__label">Плашки: чей результат</div>
               <div class="lap-panel__value">
                 <select class="form-select form-select-sm d-inline-block w-auto" v-model="lapsMode" @change="saveLapsMode">
-                  <option value="leader">По лидеру</option>
-                  <option value="all">По всем</option>
+                  <option value="leader">По лидеру (отставание)</option>
+                  <option value="all">Своё время у всех</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <div class="lap-panel__label">Какие отсечки</div>
+              <div class="lap-panel__value">
+                <select class="form-select form-select-sm d-inline-block w-auto" v-model="splitsFilter" @change="saveSplitsFilter">
+                  <option value="loop">Только круги</option>
+                  <option value="all">Все отсечки</option>
                 </select>
               </div>
             </div>
