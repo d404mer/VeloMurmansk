@@ -38,6 +38,9 @@ Vue.createApp({
       listenPort: 3000,
       ingestUrls: [],
       ingestCopyStatus: '',
+      categoryNameStatus: '',
+      categoryNameTimer: null,
+      categoryNameEditing: false,
       ingestCopyTimer: null,
       numberTrimOptions: [
         { value: 'none', label: 'Без изменений' },
@@ -119,6 +122,23 @@ Vue.createApp({
     },
     dataSourceLabel() {
       return this.dataSource === 'http' ? 'Приём POST' : 'Опрос Limetime';
+    },
+    activeCategoryName: {
+      get() {
+        return this.categories.find((c) => c.id === this.activeCategoryId)?.name || '';
+      },
+      set(value) {
+        const cat = this.categories.find((c) => c.id === this.activeCategoryId);
+        if (cat) cat.name = value;
+      },
+    },
+    activeCategoryNameAuto() {
+      const cat = this.categories.find((c) => c.id === this.activeCategoryId);
+      if (!cat) return this.activeCategoryId === 'current';
+      return cat.nameAuto !== false && (cat.id === 'current' || cat.nameAuto === true);
+    },
+    activeCategoryIngestName() {
+      return this.categories.find((c) => c.id === this.activeCategoryId)?.ingestName || '';
     },
     serverRestartRequired() {
       return (
@@ -494,6 +514,90 @@ Vue.createApp({
         .then(() => this.loadState());
     },
 
+    onCategoryNameFocus() {
+      if (this.activeCategoryNameAuto) return;
+      this.categoryNameEditing = true;
+    },
+
+    onCategoryNameBlur() {
+      this.categoryNameEditing = false;
+      if (this.activeCategoryNameAuto) return;
+      this.saveActiveCategoryName();
+    },
+
+    unlockCategoryName() {
+      axios
+        .post('/api/category-name', {
+          categoryId: this.activeCategoryId,
+          nameAuto: false,
+        })
+        .then((res) => {
+          if (Array.isArray(res.data?.categories)) {
+            this.categories = res.data.categories;
+          } else {
+            const cat = this.categories.find((c) => c.id === this.activeCategoryId);
+            if (cat) cat.nameAuto = false;
+          }
+          this.categoryNameEditing = true;
+          this.$nextTick(() => {
+            const input = document.querySelector('.category-name-input');
+            if (input) {
+              input.focus();
+              input.select();
+            }
+          });
+        })
+        .catch((err) => {
+          this.lastError = err.response?.data?.error || err.message || 'Не удалось разблокировать название';
+        });
+    },
+
+    useIngestCategoryName() {
+      axios
+        .post('/api/category-name', {
+          categoryId: this.activeCategoryId,
+          nameAuto: true,
+        })
+        .then((res) => {
+          if (Array.isArray(res.data?.categories)) {
+            this.categories = res.data.categories;
+          }
+          this.categoryNameStatus = 'С названия гонки';
+          if (this.categoryNameTimer) clearTimeout(this.categoryNameTimer);
+          this.categoryNameTimer = setTimeout(() => {
+            this.categoryNameStatus = '';
+          }, 2000);
+        })
+        .catch((err) => {
+          this.lastError = err.response?.data?.error || err.message || 'Не удалось вернуть автоназвание';
+        });
+    },
+
+    saveActiveCategoryName() {
+      const name = String(this.activeCategoryName || '').trim();
+      if (!name || !this.activeCategoryId) return;
+      axios
+        .post('/api/category-name', {
+          categoryId: this.activeCategoryId,
+          name,
+        })
+        .then((res) => {
+          if (Array.isArray(res.data?.categories)) {
+            this.categories = res.data.categories;
+          } else if (res.data?.name) {
+            this.activeCategoryName = res.data.name;
+          }
+          this.categoryNameStatus = 'Сохранено, своё название';
+          if (this.categoryNameTimer) clearTimeout(this.categoryNameTimer);
+          this.categoryNameTimer = setTimeout(() => {
+            this.categoryNameStatus = '';
+          }, 2000);
+        })
+        .catch((err) => {
+          this.lastError = err.response?.data?.error || err.message || 'Не удалось сохранить название';
+        });
+    },
+
     refreshNow() {
       axios.post('/updateData').then(() => this.loadState());
     },
@@ -725,8 +829,13 @@ Vue.createApp({
     loadConfig() {
       return axios.get('/api/config').then((res) => {
         const event = res.data.events.find((e) => e.id === res.data.activeEventId);
+        const draftName = this.categoryNameEditing ? this.activeCategoryName : null;
         this.categories = event ? event.categories : [];
         this.activeCategoryId = res.data.activeCategoryId;
+        if (draftName != null) {
+          const cat = this.categories.find((c) => c.id === this.activeCategoryId);
+          if (cat) cat.name = draftName;
+        }
         this.activeEventId = res.data.activeEventId;
         this.mode = res.data.mode;
         this.liveMode = res.data.liveMode || res.data.mode;

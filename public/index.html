@@ -32,6 +32,11 @@
       letter-spacing: 0.04em;
       color: #adb5bd;
     }
+    .category-name-input {
+      width: min(420px, 100%);
+      min-width: 220px;
+    }
+    .category-name-status { font-size: 12px; color: #8aff8a; }
     .operator-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
     .operator-tabs .btn { min-width: 120px; }
     .operator-tabs .btn.active {
@@ -345,6 +350,31 @@
             <select class="form-select d-inline-block w-auto" v-model="activeCategoryId" @change="changeCategory">
               <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
             </select>
+            <input
+              type="text"
+              class="form-control d-inline-block category-name-input"
+              v-model="activeCategoryName"
+              :readonly="activeCategoryNameAuto"
+              :placeholder="activeCategoryNameAuto ? 'Из JSON (eventName)' : (activeCategoryId === 'current' ? 'Название гонки' : 'Название категории')"
+              :title="activeCategoryNameAuto ? 'Подставляется из названия гонки в JSON. Нажмите «Изменить», чтобы задать своё.' : 'Текст в поле class на плашках vMix'"
+              @focus="onCategoryNameFocus"
+              @blur="onCategoryNameBlur"
+              @keyup.enter="$event.target.blur()"
+            />
+            <button
+              v-if="activeCategoryNameAuto"
+              type="button"
+              class="btn btn-sm btn-outline-light"
+              @click="unlockCategoryName"
+            >Изменить</button>
+            <button
+              v-else
+              type="button"
+              class="btn btn-sm btn-outline-info"
+              @click="useIngestCategoryName"
+              :title="activeCategoryIngestName ? ('Вернуть: ' + activeCategoryIngestName) : 'Снова брать название из JSON'"
+            >С названия</button>
+            <span v-if="categoryNameStatus" class="category-name-status">{{ categoryNameStatus }}</span>
             <button
               v-if="dataSource !== 'http'"
               type="button"

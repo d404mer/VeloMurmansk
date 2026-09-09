@@ -17,7 +17,15 @@ const { buildSetupView, applyIngestSettings } = require('./lib/configEditor');
 const { parseRacePayload, RaceAdapterError } = require('./lib/raceAdapter');
 const { parseRaceResultJson } = require('./lib/raceResultAdapter');
 const { parseTimingTextLog, mergeTimingPassings } = require('./lib/wiclaxTiming');
-const { ensureCurrentRaceCategory } = require('./lib/currentRace');
+const {
+  ensureCurrentRaceCategory,
+  setCategoryDisplayName,
+  setCategoryNameAuto,
+  applyIngestDisplayName,
+  categoryPublicView,
+  isCategoryNameAuto,
+  CURRENT_RACE_CATEGORY_ID,
+} = require('./lib/currentRace');
 const ingestStore = require('./lib/ingestStore');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -982,7 +990,7 @@ app.get('/api/config', (req, res) => {
     events: config.events.map((e) => ({
       id: e.id,
       name: e.name,
-      categories: e.categories.map((c) => ({ id: c.id, name: c.name })),
+      categories: e.categories.map((c) => categoryPublicView(c)),
     })),
     activeEventName: event?.name || '',
     mode: display.mode,
@@ -1046,6 +1054,16 @@ app.post('/api/race', async (req, res) => {
       error: null,
     });
     console.log(`[race] ${receivedAt} category=${parsed.categoryId} count=${parsed.count} source=${parsed.source || 'native'}`);
+
+    if (parsed.contestName && !parsed.mergePassings) {
+      updateConfig((cfg) => {
+        applyIngestDisplayName(cfg, parsed.categoryId, parsed.contestName);
+      }, 'ingest-name');
+      if (parsed.count === 0) {
+        vmixPusher.resetCache();
+        pushResultsToVmix(getDisplayData(), lastCategoryResults);
+      }
+    }
 
     if (parsed.count === 0) {
       lastIngestAt = receivedAt;
@@ -1137,6 +1155,37 @@ app.post('/api/category', async (req, res) => {
     mode: getDisplayData().mode,
     count: getDisplayData().displayList.length,
   });
+});
+
+app.post('/api/category-name', (req, res) => {
+  const categoryId = String(req.body?.categoryId || config.activeCategoryId || CURRENT_RACE_CATEGORY_ID).trim();
+  try {
+    let updated;
+    updateConfig((cfg) => {
+      if (req.body?.nameAuto === true) {
+        updated = setCategoryNameAuto(cfg, categoryId, true);
+        return;
+      }
+      if (req.body?.nameAuto === false && (req.body?.name == null || req.body?.name === '')) {
+        updated = setCategoryNameAuto(cfg, categoryId, false);
+        return;
+      }
+      updated = setCategoryDisplayName(cfg, categoryId, req.body?.name, { unlock: true });
+    }, 'category-name');
+    vmixPusher.resetCache();
+    pushResultsToVmix(getDisplayData(), lastCategoryResults);
+    const event = getActiveEvent();
+    res.json({
+      ok: true,
+      categoryId: updated.id,
+      name: updated.name,
+      nameAuto: isCategoryNameAuto(updated),
+      ingestName: updated.ingestName || '',
+      categories: (event?.categories || []).map((c) => categoryPublicView(c)),
+    });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message || String(err) });
+  }
 });
 
 app.post('/sheet1', (req, res) => {

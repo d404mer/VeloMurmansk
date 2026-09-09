@@ -3,6 +3,8 @@ Vue.createApp({
     return {
       eventId: '',
       eventName: '',
+      currentRaceName: 'Текущая гонка',
+      currentRaceNameAuto: true,
       raceGuid: '',
       dataSource: 'limetime',
       ingestDebug: false,
@@ -86,6 +88,8 @@ Vue.createApp({
       const data = res.data.data;
       this.eventId = data.eventId;
       this.eventName = data.eventName;
+      this.currentRaceName = data.currentRaceName || 'Текущая гонка';
+      this.currentRaceNameAuto = data.currentRaceNameAuto !== false;
       this.raceGuid = data.raceGuid;
       this.dataSource = data.dataSource === 'http' ? 'http' : 'limetime';
       this.ingestDebug = !!data.ingestDebug;
@@ -173,6 +177,8 @@ Vue.createApp({
         const res = await axios.post('/api/setup', {
           eventId: this.eventId,
           eventName: this.eventName,
+          currentRaceName: this.currentRaceName,
+          currentRaceNameAuto: this.currentRaceNameAuto,
           dataSource: this.dataSource,
           ingestDebug: this.ingestDebug,
           server: {

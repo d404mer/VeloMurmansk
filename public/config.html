@@ -98,6 +98,34 @@
       </div>
     </div>
 
+    <div class="setup-section">
+      <h2>Текущая гонка</h2>
+      <div class="form-check mb-2">
+        <input
+          id="current-race-auto"
+          type="checkbox"
+          class="form-check-input"
+          v-model="currentRaceNameAuto"
+        >
+        <label class="form-check-label" for="current-race-auto">
+          Брать название из JSON (<code>eventName</code>)
+        </label>
+      </div>
+      <label for="current-race-name">Название на плашках (поле class)</label>
+      <input
+        id="current-race-name"
+        type="text"
+        class="form-control"
+        v-model="currentRaceName"
+        :readonly="currentRaceNameAuto"
+        placeholder="Текущая гонка"
+      >
+      <p class="setup-hint">
+        Пока галочка включена, имя подставляется из пакета судей. Снимите её (или нажмите «Изменить» на главной), чтобы задать своё.
+        ID категории остаётся <code>current</code>.
+      </p>
+    </div>
+
     <div v-if="raceGuid" class="mb-4 preview preview-ok">
       raceGuid: {{ raceGuid }}
     </div>
