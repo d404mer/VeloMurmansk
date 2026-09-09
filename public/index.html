@@ -748,9 +748,13 @@
         <div v-show="activeTab === 'mapping'" class="field-mapping-panel">
           <h2>Маппинг полей vMix</h2>
           <p class="field-mapping-panel__hint">
-            Выберите плашку (Input в vMix), задайте её имя и настройте поля внутри.
-            Колонка «Имя в vMix» — SelectedName внутри титра (сохраняется в config).
-            Источник данных — путь в Limetime; составные значения через «+».
+            Выберите плашку (Input в vMix) и задайте имена полей внутри титра.
+            «Имя в vMix» — SelectedName в GT Title. Для строк стартового листа и результатов
+            обязательно оставьте <code>{n}</code>, например <code>Name {n}.Text</code>.
+            «Источник» — поле JSON участника: Limetime (<code>account.lastName</code>) или Wiclax
+            (<code>lastname</code>, <code>firstname</code>, <code>team</code>, <code>nationality</code>, <code>bib</code>).
+            Составные значения через «+», например <code>lastname+firstname</code>.
+            После «Сохранить» значения сразу уходят в vMix.
           </p>
 
           <div class="field-mapping-plaque-tabs">

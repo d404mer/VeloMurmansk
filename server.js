@@ -499,6 +499,25 @@ function buildVmixMeta(event, category) {
   };
 }
 
+function reapplyFieldMappingToCachedResults() {
+  const mapping = config.vmix?.fieldMapping;
+  for (const [categoryId, rawAthletes] of lastCategoryRaw.entries()) {
+    if (!Array.isArray(rawAthletes)) continue;
+    lastCategoryResults.set(categoryId, transformResults(rawAthletes, mapping));
+  }
+  const active = lastCategoryResults.get(config.activeCategoryId);
+  if (active) {
+    raceData = {
+      ...active,
+      lastUpdated: raceData.lastUpdated,
+      lastError: raceData.lastError,
+      lastExport: raceData.lastExport,
+    };
+  }
+  vmixPusher.resetCache();
+  pushResultsToVmix(getDisplayData(), lastCategoryResults);
+}
+
 function pushResultsToVmix(data, categoryResults) {
   const event = getActiveEvent();
   const activeCategory = getActiveCategory(event);
@@ -535,7 +554,7 @@ async function applyCategoryRaw(categoryId, rawAthletes, { skipExcel = false } =
 
   lastCategoryRaw.set(categoryId, rawAthletes);
 
-  const transformed = transformResults(rawAthletes);
+  const transformed = transformResults(rawAthletes, config.vmix?.fieldMapping);
   lastCategoryResults.set(categoryId, transformed);
 
   const isActive = categoryId === config.activeCategoryId;
@@ -1591,7 +1610,7 @@ app.post('/api/vmix/field-mapping', (req, res) => {
       fieldMapping: req.body?.fieldMapping,
     });
   }, 'vmix/field-mapping');
-  vmixPusher.resetCache();
+  reapplyFieldMappingToCachedResults();
   res.json({
     ok: true,
     plaques: buildPlaquesView(config),
