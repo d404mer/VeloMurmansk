@@ -21,6 +21,8 @@ const ingestStore = require('./lib/ingestStore');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
+const RAW_POST_PATH = path.join(__dirname, 'debug', 'last-raw-post.json');
+const RAW_POST_TEXT_PATH = path.join(__dirname, 'debug', 'last-raw-post.txt');
 
 let configMtimeMs = 0;
 
@@ -60,7 +62,15 @@ app.use((req, res, next) => {
   req.on('end', () => {
     const text = Buffer.concat(chunks).toString('utf8');
     const trimmed = text.trim();
+    req.rawRaceText = text;
     if (!trimmed) {
+      captureRawRacePost({
+        rawText: text,
+        parsed: {},
+        query: req.query,
+        contentType: req.headers['content-type'],
+        error: 'empty body',
+      });
       req.body = {};
       req._body = true;
       next();
@@ -68,6 +78,13 @@ app.use((req, res, next) => {
     }
     const parsed = parseRaceResultJson(trimmed);
     if (parsed == null) {
+      captureRawRacePost({
+        rawText: text,
+        parsed: null,
+        query: req.query,
+        contentType: req.headers['content-type'],
+        error: 'Invalid JSON',
+      });
       res.status(400).json({ success: false, error: 'Invalid JSON' });
       return;
     }
@@ -109,6 +126,36 @@ const vmixPusher = createVmixPusher(() => ({
     console.error('[vmix] error', err?.message || err);
   },
 }));
+
+function captureRawRacePost({ rawText, parsed, query, contentType, error }) {
+  try {
+    fs.mkdirSync(path.dirname(RAW_POST_PATH), { recursive: true });
+    fs.writeFileSync(RAW_POST_TEXT_PATH, rawText == null ? '' : String(rawText), 'utf8');
+    const keys =
+      parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? Object.keys(parsed)
+        : Array.isArray(parsed)
+          ? ['<array>']
+          : [];
+    const dump = {
+      savedAt: new Date().toISOString(),
+      error: error || null,
+      query: query || {},
+      contentType: contentType || '',
+      bytes: rawText ? Buffer.byteLength(String(rawText), 'utf8') : 0,
+      topLevelKeys: keys,
+      parsedType: Array.isArray(parsed) ? 'array' : parsed == null ? 'null' : typeof parsed,
+      parsed,
+      rawPreview: String(rawText || '').slice(0, 4000),
+    };
+    fs.writeFileSync(RAW_POST_PATH, `${JSON.stringify(dump, null, 2)}\n`, 'utf8');
+    console.log(
+      `[race] captured POST → debug/last-raw-post.json keys=${keys.join(',') || '-'} bytes=${dump.bytes}${error ? ` error=${error}` : ''}`
+    );
+  } catch (err) {
+    console.warn('[race] capture failed:', err.message || err);
+  }
+}
 
 function emptyRaceData() {
   return {
@@ -959,6 +1006,13 @@ app.post('/api/race', async (req, res) => {
   const receivedAt = new Date().toISOString();
   try {
     const parsed = parseRacePayload(req.body, req.query, config);
+    captureRawRacePost({
+      rawText: req.rawRaceText,
+      parsed: req.body,
+      query: req.query,
+      contentType: req.headers['content-type'],
+      error: null,
+    });
     console.log(`[race] ${receivedAt} category=${parsed.categoryId} count=${parsed.count} source=${parsed.source || 'native'}`);
 
     if (parsed.count === 0) {
@@ -996,6 +1050,13 @@ app.post('/api/race', async (req, res) => {
       count: parsed.count,
     });
   } catch (err) {
+    captureRawRacePost({
+      rawText: req.rawRaceText,
+      parsed: req.body,
+      query: req.query,
+      contentType: req.headers['content-type'],
+      error: err.message || String(err),
+    });
     if (err instanceof RaceAdapterError) {
       console.warn(`[race] validation ${err.status}: ${err.message}`);
       res.status(err.status).json({ success: false, error: err.message });
