@@ -17,6 +17,7 @@ const { buildSetupView, applyIngestSettings } = require('./lib/configEditor');
 const { parseRacePayload, RaceAdapterError } = require('./lib/raceAdapter');
 const { parseRaceResultJson } = require('./lib/raceResultAdapter');
 const { parseTimingTextLog, mergeTimingPassings } = require('./lib/wiclaxTiming');
+const { normalizeClubNameMode } = require('./lib/regions');
 const {
   ensureCurrentRaceCategory,
   setCategoryDisplayName,
@@ -508,10 +509,9 @@ function buildVmixMeta(event, category) {
 }
 
 function reapplyFieldMappingToCachedResults() {
-  const mapping = config.vmix?.fieldMapping;
   for (const [categoryId, rawAthletes] of lastCategoryRaw.entries()) {
     if (!Array.isArray(rawAthletes)) continue;
-    lastCategoryResults.set(categoryId, transformResults(rawAthletes, mapping));
+    lastCategoryResults.set(categoryId, transformAthletes(rawAthletes));
   }
   const active = lastCategoryResults.get(config.activeCategoryId);
   if (active) {
@@ -562,7 +562,7 @@ async function applyCategoryRaw(categoryId, rawAthletes, { skipExcel = false } =
 
   lastCategoryRaw.set(categoryId, rawAthletes);
 
-  const transformed = transformResults(rawAthletes, config.vmix?.fieldMapping);
+  const transformed = transformAthletes(rawAthletes);
   lastCategoryResults.set(categoryId, transformed);
 
   const isActive = categoryId === config.activeCategoryId;
@@ -694,6 +694,16 @@ function isBreakAfterBullet() {
 
 function getNumberTrim() {
   return normalizeNumberTrim(config.vmix?.numberTrim);
+}
+
+function getClubNameMode() {
+  return normalizeClubNameMode(config.clubNameMode ?? config.vmix?.clubNameMode);
+}
+
+function transformAthletes(rawAthletes) {
+  return transformResults(rawAthletes, config.vmix?.fieldMapping, {
+    clubNameMode: getClubNameMode(),
+  });
 }
 
 function broadcastLapEvent(event) {
@@ -1006,6 +1016,7 @@ app.get('/api/config', (req, res) => {
     splitsFilter: getSplitsFilter(),
     lapsFonts: getLapsFonts(),
     hideTeamWord: isHideTeamWord(),
+    clubNameMode: getClubNameMode(),
     excelExportEnabled: isExcelExportEnabled(),
     flowerCeremony: isFlowerCeremony(),
     breakAfterBullet: isBreakAfterBullet(),
@@ -1440,6 +1451,19 @@ app.post('/api/laps/hide-team-word', (req, res) => {
     cfg.laps.hideTeamWord = enabled;
   }, 'laps/hide-team-word');
   res.json({ ok: true, hideTeamWord: isHideTeamWord() });
+});
+
+app.post('/api/club-name-mode', (req, res) => {
+  const requested = req.body?.mode;
+  if (requested !== 'short' && requested !== 'full') {
+    res.status(400).json({ ok: false, error: 'mode must be "short" or "full"' });
+    return;
+  }
+  updateConfig((cfg) => {
+    cfg.clubNameMode = requested;
+  }, 'club-name-mode');
+  reapplyFieldMappingToCachedResults();
+  res.json({ ok: true, clubNameMode: getClubNameMode() });
 });
 
 app.post('/api/laps/fonts', (req, res) => {

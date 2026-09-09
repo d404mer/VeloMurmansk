@@ -508,6 +508,15 @@
               </div>
             </div>
             <div>
+              <div class="lap-panel__label">Клуб / регион</div>
+              <div class="lap-panel__value">
+                <select class="form-select form-select-sm d-inline-block w-auto" v-model="clubNameMode" @change="saveClubNameMode">
+                  <option value="short">Сокращение</option>
+                  <option value="full">Полное имя</option>
+                </select>
+              </div>
+            </div>
+            <div>
               <div class="lap-panel__label">Скрывать «Команда»</div>
               <div class="lap-panel__value">
                 <div class="form-check form-switch mb-0">

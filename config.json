@@ -16,6 +16,7 @@
   },
   "pollIntervalMs": 5000,
   "excelExportEnabled": false,
+  "clubNameMode": "short",
   "laps": {
     "mode": "leader",
     "splits": "loop",

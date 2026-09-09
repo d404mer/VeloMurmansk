@@ -24,6 +24,7 @@ Vue.createApp({
       splitsFilter: 'loop',
       lapsFonts: { base: 18, name: 18, number: 13 },
       hideTeamWord: false,
+      clubNameMode: 'short',
       excelExportEnabled: true,
       flowerCeremony: true,
       breakAfterBullet: true,
@@ -814,6 +815,19 @@ Vue.createApp({
         });
     },
 
+    saveClubNameMode() {
+      const mode = this.clubNameMode === 'full' ? 'full' : 'short';
+      this.clubNameMode = mode;
+      return axios
+        .post('/api/club-name-mode', { mode })
+        .then(() => this.loadState())
+        .catch((err) => {
+          this.clubNameMode = mode === 'full' ? 'short' : 'full';
+          this.lastError =
+            err.response?.data?.error || err.message || 'Ошибка сохранения режима названия клуба';
+        });
+    },
+
     saveHideTeamWord(enabled) {
       const previous = this.hideTeamWord;
       this.hideTeamWord = !!enabled;
@@ -863,6 +877,9 @@ Vue.createApp({
         }
         if (res.data.hideTeamWord != null) {
           this.hideTeamWord = !!res.data.hideTeamWord;
+        }
+        if (res.data.clubNameMode) {
+          this.clubNameMode = res.data.clubNameMode === 'full' ? 'full' : 'short';
         }
         if (res.data.excelExportEnabled != null) {
           this.excelExportEnabled = !!res.data.excelExportEnabled;
