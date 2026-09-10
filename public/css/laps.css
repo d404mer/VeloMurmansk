@@ -143,6 +143,15 @@ body {
   transition: none;
 }
 
+.plaque.plaque--exit-up {
+  transform: translateY(calc(-1 * (var(--plaque-row-height) + var(--plaque-stack-gap))));
+  opacity: 0;
+  transition:
+    transform var(--plaque-scroll-ms) ease-in,
+    opacity var(--plaque-scroll-ms) ease-in;
+  pointer-events: none;
+}
+
 .plaque__place,
 .plaque__number,
 .plaque__name,

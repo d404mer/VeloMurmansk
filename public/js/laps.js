@@ -3,6 +3,7 @@
   const MAX_FOLLOWERS = MAX_PLAQUES - 1;
   const SHIFT_MS = 420;
   const CLEAR_MS = 420;
+  const EXIT_MS = 420;
   const POLL_MS = 1000;
   const DEMO_MS = 2500;
 
@@ -54,6 +55,7 @@
   const seenEventIds = new Set();
   let shifting = false;
   let clearing = false;
+  let exiting = false;
   let currentCompletedLap = null;
   let leaderNumber = '';
   let lastLeaderRestoreKey = '';
@@ -279,12 +281,20 @@
       leaderPlaque.id = event.id;
       leaderPlaque.rawName = event.name ?? '';
       leaderPlaque.rawNumber = event.number ?? '';
+      leaderPlaque.isIntermediate = event.isIntermediate === true;
       fillPlaqueEl(leaderPlaque.el, event);
       return;
     }
 
     const el = createPlaqueEl(event);
-    leaderPlaque = { el, id: event.id, isLeader: true, rawName: event.name ?? '', rawNumber: event.number ?? '' };
+    leaderPlaque = {
+      el,
+      id: event.id,
+      isLeader: true,
+      rawName: event.name ?? '',
+      rawNumber: event.number ?? '',
+      isIntermediate: event.isIntermediate === true,
+    };
     leaderSlot.appendChild(el);
     revealPlaque(el);
   }
@@ -328,7 +338,14 @@
 
   function appendFollower(event) {
     const el = createPlaqueEl(event);
-    const entry = { el, id: event.id, isLeader: false, rawName: event.name ?? '', rawNumber: event.number ?? '' };
+    const entry = {
+      el,
+      id: event.id,
+      isLeader: false,
+      rawName: event.name ?? '',
+      rawNumber: event.number ?? '',
+      isIntermediate: event.isIntermediate === true,
+    };
 
     if (followers.length >= maxVisibleFollowers()) {
       shiftOldestFollower(el, entry);
@@ -338,6 +355,43 @@
     track.appendChild(el);
     followers.push(entry);
     revealPlaque(el);
+  }
+
+  function detachEntry(entry) {
+    if (!entry) return;
+    if (leaderPlaque === entry) {
+      leaderPlaque = null;
+      lastLeaderRestoreKey = '';
+    } else {
+      const idx = followers.indexOf(entry);
+      if (idx >= 0) followers.splice(idx, 1);
+    }
+    if (entry.el && entry.el.parentNode) {
+      entry.el.remove();
+    }
+  }
+
+  /** Fly plaques upward out of the stack (same timing as clear/shift). */
+  function flyOutEntries(entries) {
+    const list = (entries || []).filter((entry) => entry && entry.el);
+    if (!list.length) return Promise.resolve();
+
+    exiting = true;
+    return Promise.all(
+      list.map((entry) => {
+        const el = entry.el;
+        el.classList.remove('plaque--instant', 'plaque--visible');
+        // Force reflow so exit transition always runs from the visible state.
+        void el.offsetHeight;
+        el.classList.add('plaque--exit-up');
+        return waitTransition(el, EXIT_MS).then(() => {
+          detachEntry(entry);
+        });
+      })
+    ).finally(() => {
+      exiting = false;
+      processQueue();
+    });
   }
 
   function appendPlaque(event) {
@@ -363,6 +417,9 @@
     entry.id = event.id || entry.id;
     entry.rawName = event.name ?? entry.rawName;
     entry.rawNumber = event.number ?? entry.rawNumber;
+    if (event.isIntermediate != null) {
+      entry.isIntermediate = event.isIntermediate === true;
+    }
     fillPlaqueEl(entry.el, event);
     refreshVisibleNames();
   }
@@ -372,10 +429,20 @@
    * Oriented on leader's last intermediate from lapState.intermediateBoard.
    */
   function syncIntermediateBoard(board) {
-    if (clearing || shifting) return;
+    if (clearing || shifting || exiting) return;
 
     if (!board || !Array.isArray(board.rows) || !board.rows.length) {
-      lastIntermediateBoardKey = '';
+      if (lastIntermediateBoardKey) {
+        lastIntermediateBoardKey = '';
+        const stale = [];
+        if (leaderPlaque && leaderPlaque.isIntermediate) stale.push(leaderPlaque);
+        for (const entry of followers) {
+          if (entry.isIntermediate) stale.push(entry);
+        }
+        if (stale.length) {
+          flyOutEntries(stale);
+        }
+      }
       return;
     }
 
@@ -394,44 +461,54 @@
 
     const wanted = new Set(board.rows.map((r) => String(r.number ?? '')));
 
-    // Drop followers who are no longer on this intermediate (instant, no animation).
-    for (let i = followers.length - 1; i >= 0; i -= 1) {
-      const entry = followers[i];
+    const stale = [];
+    if (leaderPlaque && leaderPlaque.isIntermediate && !wanted.has(String(leaderPlaque.rawNumber ?? ''))) {
+      stale.push(leaderPlaque);
+    }
+    for (const entry of followers) {
       if (!wanted.has(String(entry.rawNumber ?? ''))) {
-        entry.el.remove();
-        followers.splice(i, 1);
+        stale.push(entry);
       }
     }
 
-    for (const row of board.rows) {
-      const event = {
-        id: `inter-${board.splitName}-${row.number}-${row.splitTime || row.gap}`,
-        place: row.place,
-        number: row.number,
-        name: row.name,
-        gap: row.gap,
-        splitTime: row.splitTime,
-        lapNumber: board.lapNumber,
-        isIntermediate: true,
-      };
+    const applyBoardRows = () => {
+      if (clearing || exiting) return;
+      for (const row of board.rows) {
+        const event = {
+          id: `inter-${board.splitName}-${row.number}-${row.splitTime || row.gap}`,
+          place: row.place,
+          number: row.number,
+          name: row.name,
+          gap: row.gap,
+          splitTime: row.splitTime,
+          lapNumber: board.lapNumber,
+          isIntermediate: true,
+        };
 
-      const existing = findVisiblePlaqueByNumber(row.number);
-      if (existing) {
-        updatePlaqueFields(existing, event);
-        continue;
-      }
+        const existing = findVisiblePlaqueByNumber(row.number);
+        if (existing) {
+          updatePlaqueFields(existing, event);
+          continue;
+        }
 
-      if (isLeaderEvent(event) && isLeaderMode()) {
-        appendLeader(event);
-        continue;
-      }
+        if (isLeaderEvent(event) && isLeaderMode()) {
+          appendLeader(event);
+          continue;
+        }
 
-      if (followers.length >= maxVisibleFollowers()) {
-        // Prefer keeping earlier places: skip if stack full and not an update.
-        continue;
+        if (followers.length >= maxVisibleFollowers()) {
+          continue;
+        }
+        appendFollower(event);
       }
-      appendFollower(event);
+    };
+
+    if (stale.length) {
+      flyOutEntries(stale).then(applyBoardRows);
+      return;
     }
+
+    applyBoardRows();
   }
 
   function enqueuePlaque(event) {
@@ -460,12 +537,12 @@
   }
 
   function processQueue() {
-    if (shifting || clearing || !eventQueue.length) return;
+    if (shifting || clearing || exiting || !eventQueue.length) return;
 
     const event = eventQueue.shift();
     appendPlaque(event);
 
-    if (!shifting && !clearing && eventQueue.length) {
+    if (!shifting && !clearing && !exiting && eventQueue.length) {
       const next = eventQueue[0];
       if (isLeaderEvent(next) || followers.length < maxVisibleFollowers()) {
         processQueue();
@@ -492,6 +569,7 @@
       }
 
       clearing = true;
+      exiting = false;
       eventQueue.length = 0;
       shifting = false;
       resetTrackPosition();
@@ -531,6 +609,7 @@
     }
     shifting = false;
     clearing = false;
+    exiting = false;
     eventQueue.length = 0;
     removeAllPlaquesNow();
   }
@@ -686,12 +765,12 @@
           updateLapStatus(data.lapState);
           await handleLapState(data.lapState);
           ensureLeaderFromState(data.lapState);
-          if (!clearing) {
+          if (!clearing && !exiting) {
             syncIntermediateBoard(data.lapState.intermediateBoard);
           }
         }
 
-        if (clearing) return;
+        if (clearing || exiting) return;
 
         const sorted = [...data.events].sort((a, b) => {
           const ta = new Date(a.at || 0).getTime();
