@@ -10,7 +10,14 @@
   const params = new URLSearchParams(window.location.search);
   const isDemo = params.get('demo') === '1';
   const isTest = params.get('test') === '1';
+  const isInterTest = isTest && params.get('inter') === '1';
   const categoryId = params.get('categoryId') || '';
+
+  if (isInterTest) {
+    document.title = 'Тест промежуточных плашек';
+  } else if (isTest) {
+    document.title = 'Тест круговых плашек';
+  }
 
   const cssVarFromParam = {
     left: '--plaque-left',
@@ -34,8 +41,10 @@
   const leaderSlot = document.getElementById('plaque-leader-slot');
   const track = document.getElementById('plaque-track');
   const plaqueStack = document.getElementById('plaque-stack');
-  const testPanel = document.getElementById('test-panel');
+  const testPanelLoops = document.getElementById('test-panel-loops');
+  const testPanelInter = document.getElementById('test-panel-inter');
   const lapStatusEl = document.getElementById('lap-status');
+  const interStatusEl = document.getElementById('inter-status');
 
   const NUMBER_TRIM_DIGITS = {
     none: 0,
@@ -434,11 +443,7 @@
     if (!board || !Array.isArray(board.rows) || !board.rows.length) {
       if (lastIntermediateBoardKey) {
         lastIntermediateBoardKey = '';
-        const stale = [];
-        if (leaderPlaque && leaderPlaque.isIntermediate) stale.push(leaderPlaque);
-        for (const entry of followers) {
-          if (entry.isIntermediate) stale.push(entry);
-        }
+        const stale = followers.filter((entry) => entry.isIntermediate);
         if (stale.length) {
           flyOutEntries(stale);
         }
@@ -461,15 +466,8 @@
 
     const wanted = new Set(board.rows.map((r) => String(r.number ?? '')));
 
-    const stale = [];
-    if (leaderPlaque && leaderPlaque.isIntermediate && !wanted.has(String(leaderPlaque.rawNumber ?? ''))) {
-      stale.push(leaderPlaque);
-    }
-    for (const entry of followers) {
-      if (!wanted.has(String(entry.rawNumber ?? ''))) {
-        stale.push(entry);
-      }
-    }
+    // Leader plaque stays pinned first — never flies out on intermediate changes.
+    const stale = followers.filter((entry) => !wanted.has(String(entry.rawNumber ?? '')));
 
     const applyBoardRows = () => {
       if (clearing || exiting) return;
@@ -824,17 +822,163 @@
     await fetch(`/api/laps/replay${qs}`, { method: 'POST' });
   }
 
+  /* ── Local intermediate (biathlon) test — separate from loop test ── */
+  const INTER_SPLITS = [
+    { name: '1CP', leaderSec: 741 },
+    { name: '2CP', leaderSec: 778 },
+    { name: '3CP', leaderSec: 784 },
+    { name: '5CP', leaderSec: 788 },
+  ];
+  const INTER_FOLLOWERS = [
+    { place: 2, number: 33, name: 'АННА СМИРНОВА', gapSec: 18 },
+    { place: 3, number: 7, name: 'ВСЕВОЛОД БОЙЧУК', gapSec: 34 },
+    { place: 4, number: 55, name: 'МАРИЯ ВОЛКОВА', gapSec: 52 },
+  ];
+
+  let interSplitIndex = 0;
+  let interFollowerCount = 0;
+  const INTER_LAP = 2; // client filter: same completed lap
+
+  function formatClock(totalSec) {
+    const s = Math.max(0, Math.floor(totalSec));
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+
+  function formatPlus(sec) {
+    return `+${formatClock(sec)}`;
+  }
+
+  function updateInterStatus() {
+    if (!interStatusEl) return;
+    const split = INTER_SPLITS[interSplitIndex];
+    interStatusEl.textContent = `${split.name} · лидер ${formatClock(split.leaderSec)} · преслед. ${interFollowerCount}`;
+  }
+
+  function buildLocalInterBoard() {
+    const split = INTER_SPLITS[interSplitIndex];
+    const rows = [
+      {
+        place: 1,
+        number: 42,
+        name: 'СОФИЯ РОСТОВЩИКОВА',
+        gap: formatClock(split.leaderSec),
+        splitTime: formatClock(split.leaderSec),
+        lapNumber: INTER_LAP,
+        splitName: split.name,
+        isIntermediate: true,
+      },
+    ];
+    for (let i = 0; i < interFollowerCount; i += 1) {
+      const f = INTER_FOLLOWERS[i];
+      if (!f) break;
+      const timeSec = split.leaderSec + f.gapSec;
+      rows.push({
+        place: f.place,
+        number: f.number,
+        name: f.name,
+        gap: formatPlus(f.gapSec),
+        splitTime: formatClock(timeSec),
+        lapNumber: INTER_LAP,
+        splitName: split.name,
+        isIntermediate: true,
+      });
+    }
+    return {
+      splitName: split.name,
+      splitTime: formatClock(split.leaderSec),
+      lapNumber: INTER_LAP,
+      rows,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function ensureInterLeaderContext() {
+    applyLapsMode('leader');
+    currentCompletedLap = INTER_LAP;
+    leaderNumber = '42';
+  }
+
+  function simInterLeader() {
+    ensureInterLeaderContext();
+    interSplitIndex = 0;
+    interFollowerCount = 0;
+    lastIntermediateBoardKey = '';
+    syncIntermediateBoard(buildLocalInterBoard());
+    updateInterStatus();
+  }
+
+  function simInterFollower() {
+    ensureInterLeaderContext();
+    if (!leaderPlaque) {
+      simInterLeader();
+    }
+    if (interFollowerCount >= INTER_FOLLOWERS.length) return;
+    interFollowerCount += 1;
+    lastIntermediateBoardKey = '';
+    syncIntermediateBoard(buildLocalInterBoard());
+    updateInterStatus();
+  }
+
+  function simInterNextCp() {
+    ensureInterLeaderContext();
+    if (!leaderPlaque) {
+      simInterLeader();
+      return;
+    }
+    if (interSplitIndex < INTER_SPLITS.length - 1) {
+      interSplitIndex += 1;
+    }
+    lastIntermediateBoardKey = '';
+    syncIntermediateBoard(buildLocalInterBoard());
+    updateInterStatus();
+  }
+
+  function simInterDropFollowers() {
+    ensureInterLeaderContext();
+    interFollowerCount = 0;
+    // Keep a truthy key so null-board path actually flies followers out.
+    if (!lastIntermediateBoardKey) lastIntermediateBoardKey = 'active';
+    syncIntermediateBoard(null);
+    setTimeout(() => {
+      lastIntermediateBoardKey = '';
+      syncIntermediateBoard(buildLocalInterBoard());
+      updateInterStatus();
+    }, EXIT_MS + 40);
+  }
+
+  function simInterClearAll() {
+    interSplitIndex = 0;
+    interFollowerCount = 0;
+    lastIntermediateBoardKey = '';
+    clearPlaques();
+    updateInterStatus();
+    if (interStatusEl) interStatusEl.textContent = 'Нет отсечки';
+  }
+
   if (isDemo) {
     startDemo();
     return;
   }
 
+  if (isInterTest) {
+    if (testPanelInter) testPanelInter.classList.remove('hidden');
+    document.getElementById('btn-inter-leader')?.addEventListener('click', simInterLeader);
+    document.getElementById('btn-inter-follower')?.addEventListener('click', simInterFollower);
+    document.getElementById('btn-inter-next')?.addEventListener('click', simInterNextCp);
+    document.getElementById('btn-inter-drop')?.addEventListener('click', simInterDropFollowers);
+    document.getElementById('btn-inter-clear')?.addEventListener('click', simInterClearAll);
+    // Local-only: do not poll race events (keeps loop test window independent).
+    return;
+  }
+
   if (isTest) {
-    testPanel.classList.remove('hidden');
-    document.getElementById('btn-random').addEventListener('click', simulateRandom);
-    document.getElementById('btn-sim-leader').addEventListener('click', simulateLeaderLap);
-    document.getElementById('btn-replay').addEventListener('click', replayFromApi);
-    document.getElementById('btn-clear').addEventListener('click', clearPlaques);
+    if (testPanelLoops) testPanelLoops.classList.remove('hidden');
+    document.getElementById('btn-random')?.addEventListener('click', simulateRandom);
+    document.getElementById('btn-sim-leader')?.addEventListener('click', simulateLeaderLap);
+    document.getElementById('btn-replay')?.addEventListener('click', replayFromApi);
+    document.getElementById('btn-clear')?.addEventListener('click', clearPlaques);
   }
 
   startPolling();

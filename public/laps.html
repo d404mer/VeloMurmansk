@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=1920, height=1080">
   <title>Плашки кругов</title>
-  <link rel="stylesheet" href="/css/laps.css?v=16">
+  <link rel="stylesheet" href="/css/laps.css?v=17">
 </head>
 
 <body>
@@ -17,14 +17,29 @@
       </div>
     </div>
   </div>
-  <div id="test-panel" class="test-panel hidden">
+
+  <!-- Тест круговых плашек (финиш круга) -->
+  <div id="test-panel-loops" class="test-panel hidden">
+    <div class="lap-status">Тест: круги (старт/финиш)</div>
     <div id="lap-status" class="lap-status"></div>
     <button type="button" id="btn-random">+ случайная плашка</button>
-    <button type="button" id="btn-sim-leader">+1 круг лидера (тест)</button>
+    <button type="button" id="btn-sim-leader">+1 круг лидера</button>
     <button type="button" id="btn-replay">Replay отсечек</button>
     <button type="button" id="btn-clear">Очистить</button>
   </div>
-  <script src="/js/laps.js?v=22"></script>
+
+  <!-- Отдельный тест промежуточных (биатлон) -->
+  <div id="test-panel-inter" class="test-panel hidden">
+    <div class="lap-status">Тест: промежуточные (биатлон)</div>
+    <div id="inter-status" class="lap-status">Нет отсечки</div>
+    <button type="button" id="btn-inter-leader">Лидер на отсечке</button>
+    <button type="button" id="btn-inter-follower">+ преследователь</button>
+    <button type="button" id="btn-inter-next">След. отсечка (обновить gap)</button>
+    <button type="button" id="btn-inter-drop">Убрать преследователей (вылет)</button>
+    <button type="button" id="btn-inter-clear">Очистить всё</button>
+  </div>
+
+  <script src="/js/laps.js?v=23"></script>
 </body>
 
 </html>

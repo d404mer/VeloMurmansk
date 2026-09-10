@@ -389,7 +389,8 @@
             <div class="controls__label">Ссылки и инструменты</div>
             <a href="/config" class="btn btn-sm btn-outline-light" title="Настройки события и категорий">Настройки</a>
             <a href="/laps" class="btn btn-sm btn-outline-light" target="_blank" title="Browser Source плашек отсечек">Плашки кругов</a>
-            <a :href="lapsTestUrl" class="btn btn-sm btn-outline-secondary" target="_blank" title="Тестовая панель плашек">Тест плашек</a>
+            <a :href="lapsTestUrl" class="btn btn-sm btn-outline-secondary" target="_blank" title="Тест круговых плашек">Тест кругов</a>
+            <a :href="lapsInterTestUrl" class="btn btn-sm btn-outline-secondary" target="_blank" title="Тест промежуточных плашек (биатлон)">Тест промежуточных</a>
             <button type="button" class="btn btn-sm btn-outline-info" @click="openVmixPreview" title="Превью полей vMix без отправки">Превью vMix</button>
           </div>
         </div>
@@ -580,6 +581,8 @@
               Сбросить счётчик
             </button>
             <a :href="lapsUrl" class="btn btn-sm btn-outline-light" target="_blank">Открыть /laps</a>
+            <a :href="lapsTestUrl" class="btn btn-sm btn-outline-secondary" target="_blank">Тест кругов</a>
+            <a :href="lapsInterTestUrl" class="btn btn-sm btn-outline-secondary" target="_blank">Тест промежуточных</a>
           </div>
         </div>
 

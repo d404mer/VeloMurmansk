@@ -103,6 +103,13 @@ Vue.createApp({
       }
       return `/laps?${parts.join('&')}`;
     },
+    lapsInterTestUrl() {
+      const parts = ['test=1', 'inter=1'];
+      if (this.activeCategoryId) {
+        parts.push(`categoryId=${encodeURIComponent(this.activeCategoryId)}`);
+      }
+      return `/laps?${parts.join('&')}`;
+    },
     modeLabel() {
       if (this.mode === 'live') return 'Промежуточные (live)';
       if (this.mode === 'final') return 'Финал';
