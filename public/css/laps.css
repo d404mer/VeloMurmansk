@@ -268,3 +268,21 @@ body {
 .test-panel button:hover {
   background: #eee;
 }
+
+.test-panel__label {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  color: #bbb;
+}
+
+.test-panel__select {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 4px;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+}

@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=1920, height=1080">
   <title>Плашки кругов</title>
-  <link rel="stylesheet" href="/css/laps.css?v=17">
+  <link rel="stylesheet" href="/css/laps.css?v=18">
 </head>
 
 <body>
@@ -18,19 +18,24 @@
     </div>
   </div>
 
-  <!-- Тест круговых плашек (финиш круга) -->
+  <!-- Тест на живых данных гонки: круги + опционально промежуточные (только это окно) -->
   <div id="test-panel-loops" class="test-panel hidden">
-    <div class="lap-status">Тест: круги (старт/финиш)</div>
+    <div class="lap-status">Тест плашек (только это окно)</div>
     <div id="lap-status" class="lap-status"></div>
+    <label class="test-panel__label" for="test-splits-filter">Какие отсечки</label>
+    <select id="test-splits-filter" class="test-panel__select">
+      <option value="loop">Только круги</option>
+      <option value="all">Круги + промежуточные</option>
+    </select>
     <button type="button" id="btn-random">+ случайная плашка</button>
     <button type="button" id="btn-sim-leader">+1 круг лидера</button>
     <button type="button" id="btn-replay">Replay отсечек</button>
     <button type="button" id="btn-clear">Очистить</button>
   </div>
 
-  <!-- Отдельный тест промежуточных (биатлон) -->
+  <!-- Локальный симулятор промежуточных без гонки -->
   <div id="test-panel-inter" class="test-panel hidden">
-    <div class="lap-status">Тест: промежуточные (биатлон)</div>
+    <div class="lap-status">Симулятор промежуточных (локально)</div>
     <div id="inter-status" class="lap-status">Нет отсечки</div>
     <button type="button" id="btn-inter-leader">Лидер на отсечке</button>
     <button type="button" id="btn-inter-follower">+ преследователь</button>
@@ -39,7 +44,7 @@
     <button type="button" id="btn-inter-clear">Очистить всё</button>
   </div>
 
-  <script src="/js/laps.js?v=23"></script>
+  <script src="/js/laps.js?v=24"></script>
 </body>
 
 </html>

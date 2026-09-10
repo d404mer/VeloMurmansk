@@ -488,7 +488,7 @@
               </div>
             </div>
           </div>
-          <p class="lap-panel__hint">Круги 1–2: только плашки финиша круга. Промежуточные — вручную («+ промежуточные»), не раньше 3-го круга; gap как в биатлоне от последней отсечки лидера.</p>
+          <p class="lap-panel__hint">Круги 1–2 на эфире: только финиш круга. Промежуточные смотрите в «Тест кругов» / «Тест промежуточных» — переключатель там локальный и не трогает Browser Source.</p>
           <div class="lap-panel__grid" style="margin-bottom: 12px;">
             <div>
               <div class="lap-panel__label">Плашки: чей результат</div>
@@ -496,15 +496,6 @@
                 <select class="form-select form-select-sm d-inline-block w-auto" v-model="lapsMode" @change="saveLapsMode">
                   <option value="leader">По лидеру (отставание)</option>
                   <option value="all">Своё время у всех</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <div class="lap-panel__label">Какие отсечки</div>
-              <div class="lap-panel__value">
-                <select class="form-select form-select-sm d-inline-block w-auto" v-model="splitsFilter" @change="saveSplitsFilter">
-                  <option value="loop">Только круги (старт/финиш)</option>
-                  <option value="all">+ промежуточные (вручную, с 3-го круга)</option>
                 </select>
               </div>
             </div>

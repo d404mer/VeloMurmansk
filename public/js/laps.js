@@ -69,6 +69,8 @@
   let leaderNumber = '';
   let lastLeaderRestoreKey = '';
   let lastIntermediateBoardKey = '';
+  /** Only for /laps?test=1 — does not affect live Browser Source. */
+  let testShowIntermediates = false;
   let demoTimer = null;
   let demoLap = 1;
 
@@ -764,7 +766,12 @@
           await handleLapState(data.lapState);
           ensureLeaderFromState(data.lapState);
           if (!clearing && !exiting) {
-            syncIntermediateBoard(data.lapState.intermediateBoard);
+            // Live overlay: loops only. Intermediate board is opt-in per test window.
+            if (isTest && testShowIntermediates) {
+              syncIntermediateBoard(data.lapState.intermediateBoard);
+            } else if (isTest && lastIntermediateBoardKey) {
+              syncIntermediateBoard(null);
+            }
           }
         }
 
@@ -979,6 +986,18 @@
     document.getElementById('btn-sim-leader')?.addEventListener('click', simulateLeaderLap);
     document.getElementById('btn-replay')?.addEventListener('click', replayFromApi);
     document.getElementById('btn-clear')?.addEventListener('click', clearPlaques);
+
+    const splitsSelect = document.getElementById('test-splits-filter');
+    if (splitsSelect) {
+      splitsSelect.value = testShowIntermediates ? 'all' : 'loop';
+      splitsSelect.addEventListener('change', () => {
+        testShowIntermediates = splitsSelect.value === 'all';
+        if (!testShowIntermediates) {
+          if (!lastIntermediateBoardKey) lastIntermediateBoardKey = 'off';
+          syncIntermediateBoard(null);
+        }
+      });
+    }
   }
 
   startPolling();
