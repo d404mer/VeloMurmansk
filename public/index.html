@@ -350,6 +350,7 @@
             <select class="form-select d-inline-block w-auto" v-model="activeCategoryId" @change="changeCategory">
               <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
             </select>
+            <span class="text-muted small ms-2">Вкладки: фиксированные + авто из имени гонки (race) в JSON</span>
             <input
               type="text"
               class="form-control d-inline-block category-name-input"
@@ -397,6 +398,11 @@
 
         <div class="meta-bar">
           <div>Режим: <strong>{{ modeLabel }}</strong> · участников: {{ resultCount }} · {{ dataSourceLabel }}</div>
+          <div v-if="standings && standings.leader">
+            Лидер (внутр. таблица): №{{ standings.leader.number }} {{ standings.leader.name }}
+            <span v-if="standings.leader.time">({{ standings.leader.time }})</span>
+            <span v-if="standings.bySplit"> · отсечек: {{ Object.keys(standings.bySplit).length }}</span>
+          </div>
           <div class="judge-url">
             <span>Адрес для судей:</span>
             <code>{{ ingestUrl }}</code>

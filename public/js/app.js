@@ -60,6 +60,7 @@ Vue.createApp({
         splitTime: '',
         updatedAt: null,
       },
+      standings: null,
       activeTab: 'results',
       sentPageIndex: null,
       sentPageTimer: null,
@@ -869,6 +870,9 @@ Vue.createApp({
         this.resultCount = res.data.resultCount ?? this.flatList.length;
         if (res.data.lapState) {
           this.lapState = res.data.lapState;
+        }
+        if (res.data.standings !== undefined) {
+          this.standings = res.data.standings;
         }
         if (res.data.totalLaps) {
           this.totalLaps = res.data.totalLaps;

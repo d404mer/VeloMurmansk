@@ -25,9 +25,11 @@ const {
   applyIngestDisplayName,
   categoryPublicView,
   isCategoryNameAuto,
+  ensureCategoryForContest,
   CURRENT_RACE_CATEGORY_ID,
 } = require('./lib/currentRace');
 const ingestStore = require('./lib/ingestStore');
+const { recomputeStandings } = require('./lib/raceStandings');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const EXPORTS_DIR = path.join(__dirname, 'exports');
@@ -215,6 +217,7 @@ function emptyRaceData() {
     displayList: [],
     leaders: [],
     lapDetails: [],
+    standings: null,
     rawCount: 0,
     lastUpdated: null,
     lastError: null,
@@ -592,16 +595,19 @@ async function fetchCategoryRaw(event, category) {
   );
 }
 
-async function applyCategoryRaw(categoryId, rawAthletes, { skipExcel = false } = {}) {
+async function applyCategoryRaw(categoryId, rawAthletes, { skipExcel = false, standings = null } = {}) {
   const event = getActiveEvent();
   const category = event?.categories.find((c) => c.id === categoryId);
   if (!event || !category) {
     throw new Error(`Category not found: ${categoryId}`);
   }
 
+  const computedStandings =
+    standings || (Array.isArray(rawAthletes) && rawAthletes.length ? recomputeStandings(rawAthletes) : null);
+
   lastCategoryRaw.set(categoryId, rawAthletes);
 
-  const transformed = transformAthletes(rawAthletes);
+  const transformed = transformAthletes(rawAthletes, { standings: computedStandings });
   lastCategoryResults.set(categoryId, transformed);
   try {
     ingestStore.saveCategoryResults(categoryId, transformed);
@@ -629,7 +635,8 @@ async function applyCategoryRaw(categoryId, rawAthletes, { skipExcel = false } =
       rawAthletes,
       getCategoryTotalLaps(category),
       getLapsMode(),
-      getSplitsFilter()
+      getSplitsFilter(),
+      computedStandings
     );
     if (isActive) {
       handleLapPollResult(categoryId, result);
@@ -669,14 +676,15 @@ function showCachedActiveCategory() {
       lastError: null,
       lastExport: raceData.lastExport,
     };
-    const raw = extractRawAthletes(cached);
+    const raw = lastCategoryRaw.get(activeCategory.id) || extractRawAthletes(cached);
     if (raw.length && !dataFrozen) {
       const result = lapTracker.processRawAthletes(
         activeCategory.id,
         raw,
         getCategoryTotalLaps(activeCategory),
         getLapsMode(),
-        getSplitsFilter()
+        getSplitsFilter(),
+        cached.standings || null
       );
       handleLapPollResult(activeCategory.id, result);
     }
@@ -744,9 +752,10 @@ function getClubNameMode() {
   return normalizeClubNameMode(config.clubNameMode ?? config.vmix?.clubNameMode);
 }
 
-function transformAthletes(rawAthletes) {
+function transformAthletes(rawAthletes, options = {}) {
   return transformResults(rawAthletes, config.vmix?.fieldMapping, {
     clubNameMode: getClubNameMode(),
+    standings: options.standings || null,
   });
 }
 
@@ -1054,6 +1063,7 @@ app.get('/api/config', (req, res) => {
     lastError: raceData.lastError,
     lastExport: raceData.lastExport,
     resultCount: display.displayList?.length ?? 0,
+    standings: display.standings || null,
     lapState: lapTracker.getLapState(config.activeCategoryId),
     totalLaps: getCategoryTotalLaps(getActiveCategory(event)),
     lapsMode: getLapsMode(),
@@ -1096,6 +1106,36 @@ app.post('/api/race', async (req, res) => {
   const receivedAt = new Date().toISOString();
   try {
     const parsed = parseRacePayload(req.body, req.query, config);
+
+    // Resolve / create dropdown tab from contest name when category was not explicit.
+    if (parsed.resolveByContest || (parsed.contestName && parsed.categoryId === CURRENT_RACE_CATEGORY_ID)) {
+      let created = false;
+      updateConfig((cfg) => {
+        const known =
+          parsed.resolveByContest && parsed.categoryId !== CURRENT_RACE_CATEGORY_ID
+            ? parsed.categoryId
+            : '';
+        const result = ensureCategoryForContest(cfg, {
+          knownCategoryId: known,
+          contestName: parsed.contestName || '',
+        });
+        if (result.category) {
+          parsed.categoryId = result.category.id;
+          parsed.category = result.category;
+          parsed.event = result.event || parsed.event;
+          created = result.created;
+        }
+      }, 'race-category-resolve');
+      if (created) {
+        lapTracker.initCategory(parsed.categoryId);
+        console.log(`[race] new category tab id=${parsed.categoryId} name=${parsed.contestName}`);
+      }
+    } else if (parsed.contestName) {
+      updateConfig((cfg) => {
+        applyIngestDisplayName(cfg, parsed.categoryId, parsed.contestName);
+      }, 'ingest-name');
+    }
+
     if (parsed.mergePassings) {
       const prev = lastCategoryRaw.get(parsed.categoryId) || [];
       parsed.athletes = mergeTimingPassings(prev, parsed.passings, config);
@@ -1105,6 +1145,11 @@ app.post('/api/race', async (req, res) => {
       parsed.athletes = mergePassingAthletes(prev, parsed.athletes);
       parsed.count = parsed.athletes.length;
     }
+
+    if (Array.isArray(parsed.athletes) && parsed.athletes.length) {
+      parsed.standings = recomputeStandings(parsed.athletes);
+    }
+
     captureRawRacePost({
       rawText: req.rawRaceText,
       parsed: req.body,
@@ -1113,16 +1158,6 @@ app.post('/api/race', async (req, res) => {
       error: null,
     });
     console.log(`[race] ${receivedAt} category=${parsed.categoryId} count=${parsed.count} source=${parsed.source || 'native'}`);
-
-    if (parsed.contestName && !parsed.mergePassings && !parsed.mergeAthletes) {
-      updateConfig((cfg) => {
-        applyIngestDisplayName(cfg, parsed.categoryId, parsed.contestName);
-      }, 'ingest-name');
-      if (parsed.count === 0) {
-        vmixPusher.resetCache();
-        pushResultsToVmix(getDisplayData(), lastCategoryResults);
-      }
-    }
 
     if (parsed.count === 0) {
       lastIngestAt = receivedAt;
@@ -1138,7 +1173,7 @@ app.post('/api/race', async (req, res) => {
       return;
     }
 
-    await applyCategoryRaw(parsed.categoryId, parsed.athletes);
+    await applyCategoryRaw(parsed.categoryId, parsed.athletes, { standings: parsed.standings });
     lastIngestAt = receivedAt;
     lastIngestCount = parsed.count;
     lastIngestCategoryId = parsed.categoryId;
@@ -1157,6 +1192,9 @@ app.post('/api/race', async (req, res) => {
       success: true,
       categoryId: parsed.categoryId,
       count: parsed.count,
+      standings: parsed.standings
+        ? { leader: parsed.standings.leader, splits: Object.keys(parsed.standings.bySplit || {}) }
+        : null,
     });
   } catch (err) {
     captureRawRacePost({
