@@ -1,7 +1,7 @@
 /**
  * Эмулятор HTTP-ретранслятора Wiclax → POST /api/race
  *
- * Шлёт и обычные отсечки (1CP…5CP), и финальные Finish по кругам.
+ * Шлёт только финальные Finish по кругам (промежуточные CP игнорируются системой).
  *
  *   node scripts/wiclax-emulator.js
  *   node scripts/wiclax-emulator.js http://localhost:3000/api/race 800
@@ -43,7 +43,6 @@ function formatRaceTime(totalSeconds) {
   return `${pad(m)}:${pad(sec)}`;
 }
 
-/** Two riders so intermediate board can show leader + gap. */
 const RIDERS = [
   {
     bib: 29,
@@ -73,16 +72,8 @@ const RIDERS = [
   },
 ];
 
-const CP_OFFSETS = [
-  { name: '1CP', offset: 0 },
-  { name: '2CP', offset: 37 },
-  { name: '3CP', offset: 43 },
-  { name: '5CP', offset: 47 },
-];
-
 const FIRST_LAP_SEC = 805;
 const OTHER_LAP_SEC = 49;
-const FIRST_CP_BASE = 741; // 12:21 on lap 1 for leader
 
 async function post(label, body) {
   const res = await axios.post(url, body, {
@@ -118,36 +109,6 @@ function riderBase(rider) {
   };
 }
 
-function lapStartSec(rider, lapNum) {
-  let t = rider.baseOffsetSec;
-  for (let n = 1; n < lapNum; n += 1) {
-    t += n === 1 ? FIRST_LAP_SEC : OTHER_LAP_SEC;
-  }
-  return t;
-}
-
-function buildCpPassing(rider, lapNum, cpIndex, rank) {
-  const start = lapStartSec(rider, lapNum);
-  const cp = CP_OFFSETS[cpIndex];
-  const raceSec = start + FIRST_CP_BASE + cp.offset;
-  const splits = CP_OFFSETS.slice(0, cpIndex + 1).map((item) => ({
-    name: item.name,
-    time: formatRaceTime(start + FIRST_CP_BASE + item.offset),
-  }));
-  return {
-    ...riderBase(rider),
-    rank,
-    rankbycat: rank,
-    rankbysex: rank,
-    split: cp.name,
-    time: formatRaceTime(raceSec),
-    brutetime: formatRaceTime(raceSec),
-    gap: rank === 1 ? '' : `+${formatRaceTime(rider.baseOffsetSec)}`,
-    lapData: [{ num: lapNum, time: formatRaceTime(raceSec - start), raceTime: formatRaceTime(raceSec) }],
-    splits,
-  };
-}
-
 function buildFinishPassing(rider, lapNum, rank) {
   const lapData = [];
   let cumulative = rider.baseOffsetSec;
@@ -161,11 +122,6 @@ function buildFinishPassing(rider, lapNum, rank) {
     });
   }
   const finishSec = cumulative;
-  const start = lapStartSec(rider, lapNum);
-  const splits = CP_OFFSETS.map((item) => ({
-    name: item.name,
-    time: formatRaceTime(start + FIRST_CP_BASE + item.offset),
-  }));
   return {
     ...riderBase(rider),
     rank,
@@ -181,12 +137,12 @@ function buildFinishPassing(rider, lapNum, rank) {
     avgSpeed: 26.31,
     distance: Number((3.121 * lapNum).toFixed(3)),
     lapData,
-    splits,
+    splits: [],
   };
 }
 
 async function main() {
-  console.log(`Wiclax emulator → ${url} (delay ${delayMs} ms, laps ${totalLaps})`);
+  console.log(`Wiclax emulator → ${url} (delay ${delayMs} ms, laps ${totalLaps}, finish-only)`);
   if (!skipEmpty) {
     await post('inRace empty', loadSample('wiclax-inrace-empty.json'));
     await sleep(delayMs);
@@ -197,14 +153,6 @@ async function main() {
   }
 
   for (let lap = 1; lap <= totalLaps; lap += 1) {
-    for (let cpIndex = 0; cpIndex < CP_OFFSETS.length; cpIndex += 1) {
-      for (let r = 0; r < RIDERS.length; r += 1) {
-        const rider = RIDERS[r];
-        const body = buildCpPassing(rider, lap, cpIndex, r + 1);
-        await post(`L${lap} ${CP_OFFSETS[cpIndex].name} bib ${rider.bib}`, body);
-        await sleep(delayMs);
-      }
-    }
     for (let r = 0; r < RIDERS.length; r += 1) {
       const rider = RIDERS[r];
       const body = buildFinishPassing(rider, lap, r + 1);

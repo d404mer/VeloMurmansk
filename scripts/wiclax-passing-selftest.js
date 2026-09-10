@@ -36,12 +36,13 @@ assert(mappedCp.account.lastName === 'ЕГОРОВА', 'name');
 assert(mappedCp.club === 'Свердловская область', 'subject as club');
 assert(mappedCp.nationality === 'СВД', 'nationality code');
 assert(mappedCp.isFinished === false, 'CP is not finish');
-assert(mappedCp.laps.every((l) => l.isLoop === false), 'CP splits are checkpoints');
-assert(mappedCp.resultTime === '00:13:08', 'CP race time');
+assert(mappedCp.laps.length === 0, 'intermediate CP does not create laps');
+assert(!mappedCp.resultTime, 'intermediate CP has no result time');
 
 const mappedFin = mapRaceResultAthlete(finish, finish);
 assert(mappedFin.isFinished === true, 'Finish flag');
 assert(mappedFin.laps.filter((l) => l.isLoop).length === 2, 'two race loops from lapData');
+assert(mappedFin.laps.every((l) => l.isLoop !== false), 'finish laps are loops only');
 assert(mappedFin.resultTime === '00:14:14', 'finish time, not brutetime');
 
 const parsedStart = parseRacePayload(start, {}, config);
@@ -58,15 +59,17 @@ const mergedCp = mergePassingAthletes(parsedStart.athletes, parsedCp.athletes);
 assert(mergedCp.length === 20, `startlist kept + bib 29, got ${mergedCp.length}`);
 const vika = mergedCp.find((a) => String(a.number) === '29');
 assert(vika && vika.account.firstName === 'Виктория', 'upserted athlete');
+assert(vika.laps.length === 0, 'CP merge keeps empty loops');
 assert(mergedCp.find((a) => String(a.number) === '1'), 'bib 1 still there');
 
 const parsedFin = parseRacePayload(finish, {}, config);
 const mergedFin = mergePassingAthletes(mergedCp, parsedFin.athletes);
 const vikaFin = mergedFin.find((a) => String(a.number) === '29');
 assert(vikaFin.isFinished === true, 'finished after merge');
+assert(vikaFin.laps.length === 2, 'finish brings two loops');
 assert(mergedFin.length === 20, 'still 20 athletes');
 
-// Internal standings: two riders on same CP
+// CP-only standings: no loops → no places
 const second = JSON.parse(JSON.stringify(cp));
 second.bib = 7;
 second.realbib = '7';
@@ -84,14 +87,35 @@ second.splits = [
 const a1 = mapRaceResultAthlete(cp, cp);
 const a2 = mapRaceResultAthlete(second, second);
 const standingsCp = recomputeStandings([a1, a2]);
-assert(standingsCp.leader.number === '29', 'CP leader is faster bib');
-assert(a1.position === 1 && a2.position === 2, 'CP positions');
-assert(String(a2.leaderDifference).startsWith('+'), 'CP gap');
-assert(standingsCp.bySplit['5CP'] && standingsCp.bySplit['5CP'].rows.length === 2, 'bySplit 5CP');
+assert(!standingsCp.leader, 'no leader without race loops');
+assert(standingsCp.overall.length === 0, 'CP-only athletes not ranked');
+assert(!standingsCp.bySplit['5CP'], 'intermediate CP not in bySplit');
 
 const standingsFin = recomputeStandings(mergedFin);
 assert(Number(vikaFin.position) === 1, `finish leader by loops, got ${vikaFin.position}`);
 assert(standingsFin.bySplit['Круг 1'] || standingsFin.bySplit['Круг 2'], 'loop splits in table');
+assert(!Object.keys(standingsFin.bySplit).some((k) => /cp/i.test(k)), 'no CP keys in bySplit');
+
+// Two finishers: faster on same loops wins
+const fin2 = JSON.parse(JSON.stringify(finish));
+fin2.bib = 7;
+fin2.realbib = '7';
+fin2.firstname = 'Анна';
+fin2.lastname = 'СМИРНОВА';
+fin2.rank = 2;
+fin2.time = '00:14:32';
+fin2.brutetime = '00:14:32';
+fin2.lapData = [
+  { num: 1, time: '00:13:40', raceTime: '00:13:40' },
+  { num: 2, time: '00:00:52', raceTime: '00:14:32' },
+];
+fin2.splits = [];
+const f1 = mapRaceResultAthlete(finish, finish);
+const f2 = mapRaceResultAthlete(fin2, fin2);
+const standingsTwo = recomputeStandings([f1, f2]);
+assert(standingsTwo.leader.number === '29', 'faster finish is leader');
+assert(f1.position === 1 && f2.position === 2, 'finish positions');
+assert(String(f2.leaderDifference).startsWith('+'), 'finish gap');
 
 // New race name → new dropdown tab
 assert(slugCategoryId('Элита Мужчины') === 'elita_muzhchiny', `slug got ${slugCategoryId('Элита Мужчины')}`);

@@ -708,7 +708,8 @@ function getLapsMode() {
 }
 
 function getSplitsFilter() {
-  return config.laps?.splits === 'all' ? 'all' : 'loop';
+  // Intermediate CPs are disabled — graphics and ranking use loops only.
+  return 'loop';
 }
 
 const DEFAULT_LAPS_FONTS = { base: 18, name: 18, number: 13 };
@@ -1501,14 +1502,9 @@ app.get('/api/laps/status', (req, res) => {
 });
 
 app.post('/api/laps/splits', (req, res) => {
-  const mode = req.body?.mode;
-  if (mode !== 'loop' && mode !== 'all') {
-    res.status(400).json({ ok: false, error: 'mode must be "loop" or "all"' });
-    return;
-  }
   updateConfig((cfg) => {
     if (!cfg.laps) cfg.laps = {};
-    cfg.laps.splits = mode;
+    cfg.laps.splits = 'loop';
   }, 'laps/splits');
   res.json({ ok: true, splitsFilter: getSplitsFilter() });
 });

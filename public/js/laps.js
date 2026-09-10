@@ -770,13 +770,8 @@
           await handleLapState(data.lapState);
           ensureLeaderFromState(data.lapState);
           if (!clearing && !exiting) {
-            // Test windows: always show intermediates. Live /laps: only if main page set "all".
-            const showIntermediates = isTest || liveSplitsFilter === 'all';
-            if (showIntermediates) {
-              syncIntermediateBoard(data.lapState.intermediateBoard);
-            } else if (lastIntermediateBoardKey) {
-              syncIntermediateBoard(null);
-            }
+            // Intermediate boards disabled — only race-loop plaques.
+            syncIntermediateBoard(null);
           }
         }
 
