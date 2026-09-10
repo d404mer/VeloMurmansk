@@ -793,6 +793,14 @@ Vue.createApp({
         });
     },
 
+    saveSplitsFilter() {
+      axios
+        .post('/api/laps/splits', { mode: this.splitsFilter })
+        .catch((err) => {
+          this.lastError = err.response?.data?.error || err.message || 'Ошибка фильтра отсечек';
+        });
+    },
+
     saveLapsFonts() {
       const previous = { ...this.lapsFonts };
       const payload = {

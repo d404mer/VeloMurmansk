@@ -69,8 +69,8 @@
   let leaderNumber = '';
   let lastLeaderRestoreKey = '';
   let lastIntermediateBoardKey = '';
-  /** Only for /laps?test=1 — does not affect live Browser Source. */
-  let testShowIntermediates = false;
+  /** Live /laps only: from main page config. Test windows always show all. */
+  let liveSplitsFilter = 'loop';
   let demoTimer = null;
   let demoLap = 1;
 
@@ -761,15 +761,20 @@
           applyNumberTrim(data.numberTrim);
         }
 
+        if (data.splitsFilter === 'loop' || data.splitsFilter === 'all') {
+          liveSplitsFilter = data.splitsFilter;
+        }
+
         if (data.lapState) {
           updateLapStatus(data.lapState);
           await handleLapState(data.lapState);
           ensureLeaderFromState(data.lapState);
           if (!clearing && !exiting) {
-            // Live overlay: loops only. Intermediate board is opt-in per test window.
-            if (isTest && testShowIntermediates) {
+            // Test windows: always show intermediates. Live /laps: only if main page set "all".
+            const showIntermediates = isTest || liveSplitsFilter === 'all';
+            if (showIntermediates) {
               syncIntermediateBoard(data.lapState.intermediateBoard);
-            } else if (isTest && lastIntermediateBoardKey) {
+            } else if (lastIntermediateBoardKey) {
               syncIntermediateBoard(null);
             }
           }
@@ -986,18 +991,6 @@
     document.getElementById('btn-sim-leader')?.addEventListener('click', simulateLeaderLap);
     document.getElementById('btn-replay')?.addEventListener('click', replayFromApi);
     document.getElementById('btn-clear')?.addEventListener('click', clearPlaques);
-
-    const splitsSelect = document.getElementById('test-splits-filter');
-    if (splitsSelect) {
-      splitsSelect.value = testShowIntermediates ? 'all' : 'loop';
-      splitsSelect.addEventListener('change', () => {
-        testShowIntermediates = splitsSelect.value === 'all';
-        if (!testShowIntermediates) {
-          if (!lastIntermediateBoardKey) lastIntermediateBoardKey = 'off';
-          syncIntermediateBoard(null);
-        }
-      });
-    }
   }
 
   startPolling();

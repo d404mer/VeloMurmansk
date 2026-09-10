@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=1920, height=1080">
   <title>Плашки кругов</title>
-  <link rel="stylesheet" href="/css/laps.css?v=18">
+  <link rel="stylesheet" href="/css/laps.css?v=19">
 </head>
 
 <body>
@@ -18,15 +18,10 @@
     </div>
   </div>
 
-  <!-- Тест на живых данных гонки: круги + опционально промежуточные (только это окно) -->
+  <!-- Тест на живых данных: всегда круги + промежуточные (независимо от эфира) -->
   <div id="test-panel-loops" class="test-panel hidden">
-    <div class="lap-status">Тест плашек (только это окно)</div>
+    <div class="lap-status">Тест: всё (круги + промежуточные)</div>
     <div id="lap-status" class="lap-status"></div>
-    <label class="test-panel__label" for="test-splits-filter">Какие отсечки</label>
-    <select id="test-splits-filter" class="test-panel__select">
-      <option value="loop">Только круги</option>
-      <option value="all">Круги + промежуточные</option>
-    </select>
     <button type="button" id="btn-random">+ случайная плашка</button>
     <button type="button" id="btn-sim-leader">+1 круг лидера</button>
     <button type="button" id="btn-replay">Replay отсечек</button>
@@ -44,7 +39,7 @@
     <button type="button" id="btn-inter-clear">Очистить всё</button>
   </div>
 
-  <script src="/js/laps.js?v=24"></script>
+  <script src="/js/laps.js?v=25"></script>
 </body>
 
 </html>
